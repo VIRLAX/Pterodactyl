@@ -1,12 +1,14 @@
 import { Router } from "express";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, usersTable, deviceSessionsTable, deviceLimitsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { hashPassword, verifyPassword, generateToken } from "../lib/auth.js";
 import { requireAuth } from "../middlewares/auth.js";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 
 const router = Router();
+
+const DEFAULT_DEVICE_LIMIT = 3;
 
 const pendingRegistrations = new Map<
   string,
@@ -69,7 +71,6 @@ async function sendOTPEmail(to: string, otp: string, username: string, type: OTP
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#080810;padding:48px 16px;">
     <tr><td align="center">
       <table width="100%" style="max-width:500px;background:#10101c;border-radius:20px;overflow:hidden;border:1px solid ${cardBorder};">
-        <!-- HEADER -->
         <tr>
           <td style="background:${headerBg};padding:36px 40px 28px;text-align:center;border-bottom:1px solid ${headerBorder};">
             <table cellpadding="0" cellspacing="0" style="margin:0 auto 12px;">
@@ -81,14 +82,11 @@ async function sendOTPEmail(to: string, otp: string, username: string, type: OTP
             <p style="margin:0;color:rgba(255,255,255,0.45);font-size:13px;letter-spacing:0.3px;">Marketplace Panel Pterodactyl</p>
           </td>
         </tr>
-        <!-- BODY -->
         <tr>
           <td style="padding:40px 40px 32px;">
             <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:${accentColor};text-transform:uppercase;letter-spacing:1.5px;">${isRegister ? "Verifikasi Email" : "Reset Password"}</p>
             <h1 style="margin:0 0 18px;font-size:24px;font-weight:800;color:#ffffff;line-height:1.3;">${headingText}</h1>
             <p style="margin:0 0 32px;font-size:15px;color:rgba(255,255,255,0.55);line-height:1.7;">${bodyText}</p>
-
-            <!-- OTP BOX -->
             <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
               <tr>
                 <td style="background:${accentColorLight};border:2px solid ${accentBorder};border-radius:14px;padding:30px;text-align:center;">
@@ -98,8 +96,6 @@ async function sendOTPEmail(to: string, otp: string, username: string, type: OTP
                 </td>
               </tr>
             </table>
-
-            <!-- WARNING -->
             <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
               <tr>
                 <td style="background:rgba(255,193,7,0.07);border:1px solid rgba(255,193,7,0.18);border-radius:10px;padding:14px 16px;">
@@ -109,11 +105,9 @@ async function sendOTPEmail(to: string, otp: string, username: string, type: OTP
                 </td>
               </tr>
             </table>
-
             <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.3);line-height:1.7;">${footerNote}</p>
           </td>
         </tr>
-        <!-- FOOTER -->
         <tr>
           <td style="background:rgba(255,255,255,0.02);padding:18px 40px;border-top:1px solid rgba(255,255,255,0.06);text-align:center;">
             <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.2);">© ${new Date().getFullYear()} PteroStore. All rights reserved.</p>
@@ -150,11 +144,123 @@ async function sendOTPEmail(to: string, otp: string, username: string, type: OTP
   });
 }
 
-const DUMMY_ADMINS = ["admin@pterostore.com"];
+async function getDeviceAccountCount(deviceId: string): Promise<number> {
+  const sessions = await db
+    .select()
+    .from(deviceSessionsTable)
+    .where(eq(deviceSessionsTable.deviceId, deviceId));
+  return sessions.length;
+}
+
+async function getDeviceLimit(deviceId: string): Promise<number> {
+  const [limitRow] = await db
+    .select()
+    .from(deviceLimitsTable)
+    .where(eq(deviceLimitsTable.deviceId, deviceId))
+    .limit(1);
+  return DEFAULT_DEVICE_LIMIT + (limitRow?.extraSlots ?? 0);
+}
+
+async function recordDeviceSession(deviceId: string, userId: number, userAgent?: string) {
+  const existing = await db
+    .select()
+    .from(deviceSessionsTable)
+    .where(and(
+      eq(deviceSessionsTable.deviceId, deviceId),
+      eq(deviceSessionsTable.userId, userId)
+    ))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(deviceSessionsTable)
+      .set({ lastSeen: new Date(), userAgent: userAgent ?? existing[0].userAgent })
+      .where(and(
+        eq(deviceSessionsTable.deviceId, deviceId),
+        eq(deviceSessionsTable.userId, userId)
+      ));
+  } else {
+    await db.insert(deviceSessionsTable).values({
+      deviceId,
+      userId,
+      userAgent: userAgent ?? null,
+    });
+  }
+}
+
+router.post("/auth/check-email", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.json({ exists: false });
+    const [user] = await db.select({ id: usersTable.id, email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.email, email.toLowerCase().trim()))
+      .limit(1);
+    return res.json({ exists: !!user });
+  } catch {
+    return res.json({ exists: false });
+  }
+});
+
+router.get("/auth/device-accounts", async (req, res) => {
+  try {
+    const deviceId = req.headers["x-device-id"] as string;
+    if (!deviceId) return res.json({ accounts: [] });
+
+    const sessions = await db
+      .select()
+      .from(deviceSessionsTable)
+      .where(eq(deviceSessionsTable.deviceId, deviceId));
+
+    const accounts = await Promise.all(
+      sessions.map(async (s) => {
+        const [user] = await db
+          .select({ id: usersTable.id, username: usersTable.username, email: usersTable.email })
+          .from(usersTable)
+          .where(eq(usersTable.id, s.userId))
+          .limit(1);
+        return user ? { id: user.id, username: user.username, email: maskEmail(user.email), lastSeen: s.lastSeen } : null;
+      })
+    );
+
+    return res.json({ accounts: accounts.filter(Boolean) });
+  } catch (err) {
+    console.error(err);
+    return res.json({ accounts: [] });
+  }
+});
+
+router.get("/auth/device-limit-info", async (req, res) => {
+  try {
+    const deviceId = req.headers["x-device-id"] as string;
+    if (!deviceId) return res.json({ used: 0, limit: DEFAULT_DEVICE_LIMIT, extraSlots: 0 });
+
+    const [count, limit] = await Promise.all([
+      getDeviceAccountCount(deviceId),
+      getDeviceLimit(deviceId),
+    ]);
+
+    const [limitRow] = await db
+      .select()
+      .from(deviceLimitsTable)
+      .where(eq(deviceLimitsTable.deviceId, deviceId))
+      .limit(1);
+
+    return res.json({
+      used: count,
+      limit,
+      extraSlots: limitRow?.extraSlots ?? 0,
+      defaultLimit: DEFAULT_DEVICE_LIMIT,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.json({ used: 0, limit: DEFAULT_DEVICE_LIMIT, extraSlots: 0, defaultLimit: DEFAULT_DEVICE_LIMIT });
+  }
+});
 
 router.post("/auth/register", async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, deviceId } = req.body;
     if (!username || !email || !password) {
       return res.status(400).json({ error: "Semua field wajib diisi" });
     }
@@ -163,6 +269,22 @@ router.post("/auth/register", async (req, res) => {
     }
     if (password.length < 6) {
       return res.status(400).json({ error: "Password minimal 6 karakter" });
+    }
+
+    if (deviceId && typeof deviceId === "string" && deviceId.length > 0) {
+      const [count, limit] = await Promise.all([
+        getDeviceAccountCount(deviceId),
+        getDeviceLimit(deviceId),
+      ]);
+      if (count >= limit) {
+        return res.status(403).json({
+          error: "Batas akun perangkat ini telah tercapai",
+          code: "DEVICE_LIMIT_REACHED",
+          used: count,
+          limit,
+          deviceId,
+        });
+      }
     }
 
     const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
@@ -201,7 +323,7 @@ router.post("/auth/register", async (req, res) => {
 
 router.post("/auth/verify-registration", async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const { email, otp, deviceId } = req.body;
     if (!email || !otp) {
       return res.status(400).json({ error: "Email dan OTP wajib diisi" });
     }
@@ -218,6 +340,23 @@ router.post("/auth/verify-registration", async (req, res) => {
       return res.status(400).json({ error: "Kode OTP salah. Periksa email kamu." });
     }
 
+    if (deviceId && typeof deviceId === "string" && deviceId.length > 0) {
+      const [count, limit] = await Promise.all([
+        getDeviceAccountCount(deviceId),
+        getDeviceLimit(deviceId),
+      ]);
+      if (count >= limit) {
+        pendingRegistrations.delete(email.toLowerCase());
+        return res.status(403).json({
+          error: "Batas akun perangkat ini telah tercapai",
+          code: "DEVICE_LIMIT_REACHED",
+          used: count,
+          limit,
+          deviceId,
+        });
+      }
+    }
+
     pendingRegistrations.delete(email.toLowerCase());
 
     const alreadyExists = await db.select().from(usersTable).where(eq(usersTable.email, record.email)).limit(1);
@@ -232,6 +371,11 @@ router.post("/auth/verify-registration", async (req, res) => {
       role: "user",
     }).returning();
 
+    if (deviceId && typeof deviceId === "string" && deviceId.length > 0) {
+      const userAgent = req.headers["user-agent"];
+      await recordDeviceSession(deviceId, user.id, userAgent);
+    }
+
     const token = generateToken(user.id, user.role);
     return res.status(201).json({
       user: { id: user.id, username: user.username, email: user.email, role: user.role, createdAt: user.createdAt },
@@ -245,13 +389,18 @@ router.post("/auth/verify-registration", async (req, res) => {
 
 router.post("/auth/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, deviceId } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: "Email dan password wajib diisi" });
     }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
     if (!user || !verifyPassword(password, user.passwordHash)) {
       return res.status(401).json({ error: "Email atau password salah. Periksa kembali." });
+    }
+
+    if (deviceId && typeof deviceId === "string" && deviceId.length > 0) {
+      const userAgent = req.headers["user-agent"];
+      await recordDeviceSession(deviceId, user.id, userAgent);
     }
 
     const token = generateToken(user.id, user.role);

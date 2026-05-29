@@ -24,6 +24,7 @@ import AdminInvites from "@/pages/admin/invites";
 import AdminReviews from "@/pages/admin/reviews";
 import AdminBugs from "@/pages/admin/bugs";
 import AdminSettings from "@/pages/admin/settings";
+import AdminSessions from "@/pages/admin/sessions";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +55,7 @@ function Router() {
       <Route path="/admin/invites" component={AdminInvites} />
       <Route path="/admin/reviews" component={AdminReviews} />
       <Route path="/admin/bugs" component={AdminBugs} />
+      <Route path="/admin/sessions" component={AdminSessions} />
       <Route path="/admin/settings" component={AdminSettings} />
       
       <Route component={NotFound} />

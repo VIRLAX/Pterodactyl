@@ -6,3 +6,4 @@ export * from "./invites";
 export * from "./reviews";
 export * from "./bugs";
 export * from "./settings";
+export * from "./device_sessions";

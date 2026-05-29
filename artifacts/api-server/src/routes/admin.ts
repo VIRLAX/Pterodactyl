@@ -1,9 +1,11 @@
 import { Router } from "express";
-import { db, usersTable, ordersTable, productsTable, reviewsTable, inviteRequestsTable, bugReportsTable } from "@workspace/db";
-import { eq, gte, and, sql } from "drizzle-orm";
+import { db, usersTable, ordersTable, productsTable, reviewsTable, inviteRequestsTable, bugReportsTable, deviceSessionsTable, deviceLimitsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth.js";
 
 const router = Router();
+
+const DEFAULT_DEVICE_LIMIT = 3;
 
 router.get("/admin/stats", requireAdmin, async (_req, res) => {
   try {
@@ -83,6 +85,126 @@ router.get("/admin/transactions-chart", requireAdmin, async (_req, res) => {
       });
     }
     return res.json(days);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/admin/sessions", requireAdmin, async (_req, res) => {
+  try {
+    const sessions = await db.select().from(deviceSessionsTable);
+    const limits = await db.select().from(deviceLimitsTable);
+
+    const deviceMap = new Map<string, { deviceId: string; users: any[]; limit: number; extraSlots: number; lastSeen: Date }>();
+
+    for (const s of sessions) {
+      const [user] = await db
+        .select({ id: usersTable.id, username: usersTable.username, email: usersTable.email, role: usersTable.role })
+        .from(usersTable)
+        .where(eq(usersTable.id, s.userId))
+        .limit(1);
+
+      if (!user) continue;
+
+      if (!deviceMap.has(s.deviceId)) {
+        const limitRow = limits.find(l => l.deviceId === s.deviceId);
+        deviceMap.set(s.deviceId, {
+          deviceId: s.deviceId,
+          users: [],
+          limit: DEFAULT_DEVICE_LIMIT + (limitRow?.extraSlots ?? 0),
+          extraSlots: limitRow?.extraSlots ?? 0,
+          lastSeen: s.lastSeen,
+        });
+      }
+
+      const entry = deviceMap.get(s.deviceId)!;
+      entry.users.push({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        firstSeen: s.firstSeen,
+        lastSeen: s.lastSeen,
+        userAgent: s.userAgent,
+      });
+
+      if (s.lastSeen > entry.lastSeen) {
+        entry.lastSeen = s.lastSeen;
+      }
+    }
+
+    const result = Array.from(deviceMap.values()).sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime());
+    return res.json(result);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/admin/sessions/extend-limit", requireAdmin, async (req, res) => {
+  try {
+    const { deviceId, extraSlots, note } = req.body;
+    if (!deviceId || typeof extraSlots !== "number" || extraSlots < 0) {
+      return res.status(400).json({ error: "deviceId dan extraSlots wajib diisi" });
+    }
+
+    const existing = await db.select().from(deviceLimitsTable).where(eq(deviceLimitsTable.deviceId, deviceId)).limit(1);
+
+    if (existing.length > 0) {
+      await db
+        .update(deviceLimitsTable)
+        .set({ extraSlots, note: note ?? null, updatedAt: new Date() })
+        .where(eq(deviceLimitsTable.deviceId, deviceId));
+    } else {
+      await db.insert(deviceLimitsTable).values({
+        deviceId,
+        extraSlots,
+        note: note ?? null,
+      });
+    }
+
+    return res.json({ success: true, deviceId, limit: DEFAULT_DEVICE_LIMIT + extraSlots });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/admin/sessions/:deviceId/user/:userId", requireAdmin, async (req, res) => {
+  try {
+    const { deviceId, userId } = req.params;
+    await db
+      .delete(deviceSessionsTable)
+      .where(and(
+        eq(deviceSessionsTable.deviceId, deviceId),
+        eq(deviceSessionsTable.userId, Number(userId))
+      ));
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/admin/sessions/:deviceId", requireAdmin, async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    await db.delete(deviceSessionsTable).where(eq(deviceSessionsTable.deviceId, deviceId));
+    await db.delete(deviceLimitsTable).where(eq(deviceLimitsTable.deviceId, deviceId));
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/admin/users/:id", requireAdmin, async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    if (isNaN(userId)) return res.status(400).json({ error: "ID tidak valid" });
+    await db.delete(usersTable).where(eq(usersTable.id, userId));
+    return res.json({ success: true });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Internal server error" });

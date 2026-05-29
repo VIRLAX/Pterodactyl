@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,10 +13,20 @@ import { Navbar } from "@/components/layout/Navbar";
 import {
   UserPlus, Mail, KeyRound, User, Eye, EyeOff,
   ChevronRight, ArrowLeft, RefreshCw, ShieldCheck,
+  AlertTriangle, Copy, Check, LogIn,
 } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
 
-type RegisterStep = "form" | "otp";
+function getOrCreateDeviceId(): string {
+  let id = localStorage.getItem("pterostore_device_id");
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("pterostore_device_id", id);
+  }
+  return id;
+}
+
+type RegisterStep = "form" | "otp" | "limit_reached";
 
 const registerSchema = z.object({
   username: z.string().min(3, { message: "Username minimal 3 karakter" }),
@@ -45,6 +55,22 @@ export default function Register() {
   const [emailValue, setEmailValue] = useState("");
   const [maskedEmail, setMaskedEmail] = useState("");
   const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [deviceId, setDeviceId] = useState("");
+  const [deviceLimit, setDeviceLimit] = useState({ used: 0, limit: 3 });
+  const [limitInfo, setLimitInfo] = useState<{ used: number; limit: number } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const id = getOrCreateDeviceId();
+    setDeviceId(id);
+
+    fetch(`${getApiUrl()}/auth/device-limit-info`, {
+      headers: { "X-Device-ID": id },
+    })
+      .then(r => r.json())
+      .then(data => setDeviceLimit(data))
+      .catch(() => {});
+  }, []);
 
   const registerForm = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
@@ -56,16 +82,28 @@ export default function Register() {
     defaultValues: { otp: "" },
   });
 
+  function copyDeviceId() {
+    navigator.clipboard.writeText(deviceId).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   async function onRegister(data: RegisterValues) {
     setLoading(true);
     try {
       const res = await fetch(`${getApiUrl()}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: data.username, email: data.email, password: data.password }),
+        body: JSON.stringify({ username: data.username, email: data.email, password: data.password, deviceId }),
       });
       const json = await res.json();
       if (!res.ok) {
+        if (json.code === "DEVICE_LIMIT_REACHED") {
+          setLimitInfo({ used: json.used, limit: json.limit });
+          setStep("limit_reached");
+          return;
+        }
         toast.error(json.error || "Pendaftaran gagal. Coba lagi.");
         return;
       }
@@ -91,16 +129,21 @@ export default function Register() {
       const res = await fetch(`${getApiUrl()}/auth/verify-registration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailValue, otp: data.otp }),
+        body: JSON.stringify({ email: emailValue, otp: data.otp, deviceId }),
       });
       const json = await res.json();
       if (!res.ok) {
+        if (json.code === "DEVICE_LIMIT_REACHED") {
+          setLimitInfo({ used: json.used, limit: json.limit });
+          setStep("limit_reached");
+          return;
+        }
         toast.error(json.error || "Kode OTP salah. Coba lagi.");
         otpForm.setError("otp", { message: json.error });
         return;
       }
       login(json.token, json.user);
-      toast.success(`Akun berhasil dibuat! Selamat datang, ${json.user.username}! 🎉`);
+      toast.success(`Akun berhasil dibuat! Selamat datang, ${json.user.username}!`);
       setLocation("/marketplace");
     } catch {
       toast.error("Gagal terhubung ke server.");
@@ -116,7 +159,7 @@ export default function Register() {
       await fetch(`${getApiUrl()}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: vals.username, email: vals.email, password: vals.password }),
+        body: JSON.stringify({ username: vals.username, email: vals.email, password: vals.password, deviceId }),
       });
       toast.success("OTP baru telah dikirim!");
     } catch {
@@ -130,7 +173,6 @@ export default function Register() {
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
 
-          {/* ─── FORM PENDAFTARAN ─────────────────────────────── */}
           {step === "form" && (
             <>
               <div className="text-center mb-8">
@@ -140,6 +182,19 @@ export default function Register() {
                 <h1 className="text-2xl font-bold text-white mb-2">Buat Akun Baru</h1>
                 <p className="text-muted-foreground text-sm">Daftar dan mulai belanja panel Pterodactyl</p>
               </div>
+
+              {deviceLimit.used >= deviceLimit.limit - 1 && deviceLimit.used < deviceLimit.limit && (
+                <div className="mb-4 bg-yellow-500/10 border border-yellow-500/25 rounded-xl p-3.5 flex items-start gap-3">
+                  <AlertTriangle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm text-yellow-300 font-medium">Hampir mencapai batas</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Perangkat ini sudah digunakan untuk <strong className="text-white">{deviceLimit.used}/{deviceLimit.limit}</strong> akun.
+                      Setelah ini, kamu tidak bisa membuat akun baru tanpa persetujuan admin.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <Card className="glass-panel border border-white/10 shadow-[0_0_40px_rgba(150,10,255,0.06)]">
                 <CardHeader className="pb-2 pt-6">
@@ -291,7 +346,73 @@ export default function Register() {
             </>
           )}
 
-          {/* ─── VERIFIKASI OTP ───────────────────────────────── */}
+          {step === "limit_reached" && (
+            <>
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 mb-4">
+                  <AlertTriangle className="w-6 h-6 text-red-400" />
+                </div>
+                <h1 className="text-2xl font-bold text-white mb-2">Batas Akun Tercapai</h1>
+                <p className="text-muted-foreground text-sm">Perangkat ini telah mencapai batas maksimal pembuatan akun</p>
+              </div>
+
+              <Card className="glass-panel border border-red-500/20">
+                <CardContent className="pt-6 space-y-4">
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
+                    <p className="text-sm text-white font-semibold mb-1">
+                      Batas akun: {limitInfo?.used ?? 0}/{limitInfo?.limit ?? 3}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      1 perangkat hanya diizinkan membuat <strong className="text-white">{limitInfo?.limit ?? 3} akun</strong>.
+                      Untuk menambah kuota, hubungi admin dengan menyertakan ID Perangkat kamu.
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">ID Perangkat Kamu</p>
+                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-3">
+                      <code className="flex-1 text-xs text-white font-mono break-all">{deviceId}</code>
+                      <button
+                        onClick={copyDeviceId}
+                        className="flex-shrink-0 p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                      >
+                        {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Salin ID di atas dan kirimkan ke admin. Admin akan menambah kuota akun untuk perangkat kamu.
+                    </p>
+                  </div>
+
+                  <div className="bg-blue-500/8 border border-blue-500/15 rounded-xl p-3.5 flex items-start gap-3">
+                    <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-blue-400 text-xs font-bold">i</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Setelah admin menambah kuota, kamu bisa kembali ke halaman ini dan coba daftar lagi.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      onClick={() => setStep("form")}
+                      variant="outline"
+                      className="w-full border-white/15 text-muted-foreground hover:bg-white/5 gap-2"
+                    >
+                      <ArrowLeft className="w-4 h-4" /> Kembali
+                    </Button>
+                    <Button
+                      onClick={() => setLocation("/login")}
+                      className="w-full bg-primary hover:bg-primary/90 text-white gap-2"
+                    >
+                      <LogIn className="w-4 h-4" /> Login ke Akun yang Ada
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
           {step === "otp" && (
             <>
               <div className="text-center mb-8">
@@ -399,3 +520,4 @@ export default function Register() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,9 +12,19 @@ import { toast } from "sonner";
 import { Navbar } from "@/components/layout/Navbar";
 import {
   LogIn, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft,
-  RefreshCw, Lock, ShieldCheck,
+  RefreshCw, Lock, ShieldCheck, CheckCircle2, XCircle, Users,
+  Copy, ChevronDown,
 } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
+
+function getOrCreateDeviceId(): string {
+  let id = localStorage.getItem("pterostore_device_id");
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("pterostore_device_id", id);
+  }
+  return id;
+}
 
 type LoginStep = "login" | "forgot_email" | "forgot_otp" | "forgot_newpass";
 
@@ -55,6 +65,14 @@ export default function Login() {
   const [resetToken, setResetToken] = useState("");
   const [forgotDevOtp, setForgotDevOtp] = useState<string | null>(null);
 
+  const [emailStatus, setEmailStatus] = useState<"idle" | "valid" | "invalid">("idle");
+  const [passwordStatus, setPasswordStatus] = useState<"idle" | "valid" | "invalid">("idle");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [showDeviceAccounts, setShowDeviceAccounts] = useState(false);
+  const [deviceAccounts, setDeviceAccounts] = useState<any[]>([]);
+  const [loadingDeviceAccounts, setLoadingDeviceAccounts] = useState(false);
+  const emailDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const loginForm = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
@@ -72,19 +90,81 @@ export default function Login() {
     defaultValues: { newPassword: "", confirmPassword: "" },
   });
 
+  const emailValue = loginForm.watch("email");
+
+  useEffect(() => {
+    if (!emailValue || !emailValue.includes("@")) {
+      setEmailStatus("idle");
+      return;
+    }
+    if (emailDebounceRef.current) clearTimeout(emailDebounceRef.current);
+    emailDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${getApiUrl()}/auth/check-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: emailValue }),
+        });
+        const json = await res.json();
+        setEmailStatus(json.exists ? "valid" : "invalid");
+      } catch {
+        setEmailStatus("idle");
+      }
+    }, 500);
+  }, [emailValue]);
+
+  async function fetchDeviceAccounts() {
+    const deviceId = getOrCreateDeviceId();
+    setLoadingDeviceAccounts(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/auth/device-accounts`, {
+        headers: { "X-Device-ID": deviceId },
+      });
+      const json = await res.json();
+      setDeviceAccounts(json.accounts ?? []);
+    } catch {
+      setDeviceAccounts([]);
+    } finally {
+      setLoadingDeviceAccounts(false);
+    }
+  }
+
   async function onLogin(data: LoginValues) {
     setLoading(true);
+    setLoginError(null);
+    setEmailStatus("idle");
+    setPasswordStatus("idle");
+    setShowDeviceAccounts(false);
     try {
+      const deviceId = getOrCreateDeviceId();
       const res = await fetch(`${getApiUrl()}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, deviceId }),
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error || "Login gagal. Periksa email dan password.");
+        const errMsg = json.error || "Login gagal. Periksa email dan password.";
+        setLoginError(errMsg);
+
+        const emailCheck = await fetch(`${getApiUrl()}/auth/check-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: data.email }),
+        });
+        const emailJson = await emailCheck.json();
+
+        if (!emailJson.exists) {
+          setEmailStatus("invalid");
+          setPasswordStatus("idle");
+        } else {
+          setEmailStatus("valid");
+          setPasswordStatus("invalid");
+        }
         return;
       }
+      setEmailStatus("valid");
+      setPasswordStatus("valid");
       login(json.token, json.user);
       toast.success(`Selamat datang, ${json.user.username}!`);
       setLocation(json.user.role === "admin" ? "/admin" : "/marketplace");
@@ -185,13 +265,18 @@ export default function Login() {
     }
   }
 
+  const StatusIcon = ({ status }: { status: "idle" | "valid" | "invalid" }) => {
+    if (status === "valid") return <CheckCircle2 className="w-4 h-4 text-green-400" />;
+    if (status === "invalid") return <XCircle className="w-4 h-4 text-red-400" />;
+    return null;
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
 
-          {/* ─── LOGIN ──────────────────────────────────────── */}
           {step === "login" && (
             <>
               <div className="text-center mb-8">
@@ -215,13 +300,34 @@ export default function Login() {
                               <Mail className="w-3.5 h-3.5" /> Email
                             </FormLabel>
                             <FormControl>
-                              <Input
-                                placeholder="name@gmail.com"
-                                autoComplete="email"
-                                className="bg-background/60 border-white/10 focus:border-primary/50"
-                                {...field}
-                              />
+                              <div className="relative">
+                                <Input
+                                  placeholder="name@gmail.com"
+                                  autoComplete="email"
+                                  className={`bg-background/60 pr-10 transition-colors ${
+                                    emailStatus === "valid"
+                                      ? "border-green-500/60 focus:border-green-500"
+                                      : emailStatus === "invalid"
+                                      ? "border-red-500/60 focus:border-red-500"
+                                      : "border-white/10 focus:border-primary/50"
+                                  }`}
+                                  {...field}
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                                  <StatusIcon status={emailStatus} />
+                                </span>
+                              </div>
                             </FormControl>
+                            {emailStatus === "invalid" && (
+                              <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
+                                <XCircle className="w-3 h-3" /> Email tidak terdaftar. Periksa kembali.
+                              </p>
+                            )}
+                            {emailStatus === "valid" && (
+                              <p className="text-xs text-green-400 flex items-center gap-1 mt-1">
+                                <CheckCircle2 className="w-3 h-3" /> Email ditemukan.
+                              </p>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -249,23 +355,122 @@ export default function Login() {
                                   type={showPass ? "text" : "password"}
                                   placeholder="••••••••"
                                   autoComplete="current-password"
-                                  className="bg-background/60 border-white/10 focus:border-primary/50 pr-10"
+                                  className={`bg-background/60 pr-16 transition-colors ${
+                                    passwordStatus === "valid"
+                                      ? "border-green-500/60 focus:border-green-500"
+                                      : passwordStatus === "invalid"
+                                      ? "border-red-500/60 focus:border-red-500"
+                                      : "border-white/10 focus:border-primary/50"
+                                  }`}
                                   {...field}
                                 />
-                                <button
-                                  type="button"
-                                  tabIndex={-1}
-                                  onClick={() => setShowPass((v) => !v)}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
-                                >
-                                  {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                                  <StatusIcon status={passwordStatus} />
+                                  <button
+                                    type="button"
+                                    tabIndex={-1}
+                                    onClick={() => setShowPass((v) => !v)}
+                                    className="text-muted-foreground hover:text-white transition-colors"
+                                  >
+                                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                  </button>
+                                </div>
                               </div>
                             </FormControl>
+                            {passwordStatus === "invalid" && (
+                              <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
+                                <XCircle className="w-3 h-3" /> Password salah.
+                              </p>
+                            )}
+                            {passwordStatus === "valid" && (
+                              <p className="text-xs text-green-400 flex items-center gap-1 mt-1">
+                                <CheckCircle2 className="w-3 h-3" /> Password benar.
+                              </p>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
                       />
+
+                      {loginError && (
+                        <div className="bg-red-500/10 border border-red-500/25 rounded-xl p-3.5">
+                          <p className="text-sm text-red-400 text-center">{loginError}</p>
+                          <p className="text-xs text-muted-foreground text-center mt-1">
+                            Pastikan username/password sudah benar. Jika lupa, gunakan fitur{" "}
+                            <button
+                              type="button"
+                              onClick={() => setStep("forgot_email")}
+                              className="text-primary underline"
+                            >
+                              Lupa Password
+                            </button>
+                            .
+                          </p>
+                          {passwordStatus === "valid" && emailStatus === "invalid" && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                setShowDeviceAccounts(v => !v);
+                                if (!showDeviceAccounts) await fetchDeviceAccounts();
+                              }}
+                              className="mt-3 w-full flex items-center justify-center gap-2 text-xs text-blue-400 border border-blue-500/25 rounded-lg py-2 hover:bg-blue-500/10 transition-colors"
+                            >
+                              <Users className="w-3.5 h-3.5" />
+                              Lihat akun yang pernah login di perangkat ini
+                              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDeviceAccounts ? "rotate-180" : ""}`} />
+                            </button>
+                          )}
+                          {emailStatus === "invalid" && passwordStatus === "idle" && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                setShowDeviceAccounts(v => !v);
+                                if (!showDeviceAccounts) await fetchDeviceAccounts();
+                              }}
+                              className="mt-3 w-full flex items-center justify-center gap-2 text-xs text-blue-400 border border-blue-500/25 rounded-lg py-2 hover:bg-blue-500/10 transition-colors"
+                            >
+                              <Users className="w-3.5 h-3.5" />
+                              Lihat akun yang pernah login di perangkat ini
+                              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDeviceAccounts ? "rotate-180" : ""}`} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {showDeviceAccounts && (
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Akun di perangkat ini
+                          </p>
+                          {loadingDeviceAccounts ? (
+                            <div className="flex items-center justify-center py-3">
+                              <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                            </div>
+                          ) : deviceAccounts.length === 0 ? (
+                            <p className="text-xs text-muted-foreground text-center py-2">Tidak ada akun yang tercatat di perangkat ini.</p>
+                          ) : (
+                            deviceAccounts.map((acc: any) => (
+                              <div key={acc.id} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
+                                <div>
+                                  <p className="text-sm text-white font-medium">{acc.username}</p>
+                                  <p className="text-xs text-muted-foreground">{acc.email}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    loginForm.setValue("email", "");
+                                    toast.info(`Gunakan email akun "${acc.username}" untuk login.`);
+                                  }}
+                                  className="text-xs text-primary"
+                                >
+                                  Pilih
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+
                       <Button
                         type="submit"
                         disabled={loading}
@@ -303,7 +508,6 @@ export default function Login() {
             </>
           )}
 
-          {/* ─── FORGOT: MASUKKAN EMAIL ──────────────────────── */}
           {step === "forgot_email" && (
             <>
               <div className="text-center mb-8">
@@ -373,7 +577,6 @@ export default function Login() {
             </>
           )}
 
-          {/* ─── FORGOT: VERIFIKASI OTP ──────────────────────── */}
           {step === "forgot_otp" && (
             <>
               <div className="text-center mb-8">
@@ -471,7 +674,6 @@ export default function Login() {
             </>
           )}
 
-          {/* ─── FORGOT: PASSWORD BARU ───────────────────────── */}
           {step === "forgot_newpass" && (
             <>
               <div className="text-center mb-8">
@@ -506,15 +708,11 @@ export default function Login() {
                                 <Input
                                   type={showNew ? "text" : "password"}
                                   placeholder="••••••••"
+                                  autoComplete="new-password"
                                   className="bg-background/60 border-white/10 focus:border-green-500/50 pr-10"
                                   {...field}
                                 />
-                                <button
-                                  type="button"
-                                  tabIndex={-1}
-                                  onClick={() => setShowNew((v) => !v)}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
-                                >
+                                <button type="button" tabIndex={-1} onClick={() => setShowNew(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white">
                                   {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                               </div>
@@ -536,15 +734,11 @@ export default function Login() {
                                 <Input
                                   type={showConfirm ? "text" : "password"}
                                   placeholder="••••••••"
+                                  autoComplete="new-password"
                                   className="bg-background/60 border-white/10 focus:border-green-500/50 pr-10"
                                   {...field}
                                 />
-                                <button
-                                  type="button"
-                                  tabIndex={-1}
-                                  onClick={() => setShowConfirm((v) => !v)}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
-                                >
+                                <button type="button" tabIndex={-1} onClick={() => setShowConfirm(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white">
                                   {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                               </div>
@@ -553,11 +747,7 @@ export default function Login() {
                           </FormItem>
                         )}
                       />
-                      <Button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.25)] transition-all mt-2"
-                      >
+                      <Button type="submit" disabled={loading} className="w-full bg-green-600 hover:bg-green-500 text-white transition-all mt-2">
                         {loading ? (
                           <span className="flex items-center gap-2">
                             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -571,6 +761,11 @@ export default function Login() {
                       </Button>
                     </form>
                   </Form>
+                  <div className="mt-4">
+                    <Button variant="ghost" className="w-full text-muted-foreground border border-white/10 hover:bg-white/5 text-sm gap-2" onClick={() => setStep("forgot_otp")}>
+                      <ArrowLeft className="w-3.5 h-3.5" /> Kembali
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </>

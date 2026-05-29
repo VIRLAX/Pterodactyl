@@ -37,3 +37,9 @@ externalPort = 3001
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+"SMTP_USER " = "pterostorecore@gmail.com"
+SMTP_PASS = "mkxs upxl pvyf aapy"

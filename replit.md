@@ -32,6 +32,20 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 
 _Describe the high-level user-facing capabilities of this app once they exist._
 
+## Demo Accounts
+
+Akun dummy siap pakai (sudah di-seed ke database):
+
+| Role  | Email                    | Password  |
+|-------|--------------------------|-----------|
+| Admin | admin@pterostore.com     | admin123  |
+| User  | user@pterostore.com      | user123   |
+
+Untuk re-seed: `pnpm --filter @workspace/scripts run seed`
+Untuk push schema: `pnpm --filter @workspace/db run push`
+
+Kode diskon: `WELCOME10` (diskon 10%)
+
 ## User preferences
 
 _Populate as you build — explicit user instructions worth remembering across sessions._

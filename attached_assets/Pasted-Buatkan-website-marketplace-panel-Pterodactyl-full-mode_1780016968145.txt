@@ -1,0 +1,152 @@
+Buatkan website marketplace panel Pterodactyl full modern dan futuristic dengan UI/UX elegan, dark mode premium, responsive mobile dan desktop, tampilan clean, animasi smooth, glowing effect modern, layout rapih tidak berantakan dan terlihat profesional seperti startup hosting modern.
+
+Website harus full stack dan production ready.
+
+Fitur utama:
+
+- Landing page modern
+- Login/Register user
+- Login admin dashboard secure
+- Dashboard admin lengkap
+- Sistem role admin & user
+- Session login aman
+- Anti brute force/basic security
+- Responsive semua device
+
+Halaman marketplace:
+
+- Menampilkan produk panel:
+  1GB
+  2GB
+  3GB
+  4GB
+  5GB
+  6GB
+  7GB
+  8GB
+  9GB
+  Unlimited
+  TK
+  OWN
+  PT
+  ADP
+  RESS
+
+Setiap produk memiliki:
+
+- Nama produk
+- Harga
+- Deskripsi detail
+- Kegunaan produk
+- Cocok untuk apa
+- Benefit produk
+- Badge populer/recommended
+- Status ready
+
+Semua produk, harga, deskripsi, stok, badge, dan status dapat diubah owner/admin melalui dashboard admin tanpa edit coding.
+
+Fitur pembayaran:
+
+- Payment Dana
+- Payment QRIS otomatis
+- Upload bukti pembayaran
+- Status pembayaran realtime
+- Invoice modern
+- Riwayat transaksi
+- Sistem pending/sukses/gagal
+- Tombol salin nomor Dana
+- QR otomatis muncul saat checkout
+
+Fitur diskon:
+
+1. Diskon owner:
+
+- Admin bisa membuat token diskon manual
+- Bisa atur persen diskon
+- Bisa atur masa aktif
+- Token hanya bisa dipakai 1x
+
+2. Diskon invite:
+
+- User invite teman ke grup/store
+- User upload screenshot bukti invite
+- Sistem analisis upload
+- Sistem kirim validasi ke nomor WhatsApp owner/admin
+- Admin mendapat notifikasi di dashboard
+- Admin cukup tekan tombol “Validasi”
+- Setelah valid, sistem otomatis membuat token invite
+- User bisa copy token
+
+Token invite hanya berlaku untuk:
+Unlimited
+8GB
+9GB
+TK
+OWN
+PT
+ADP
+RESS
+
+Saat token dimasukkan di checkout:
+
+- Harga otomatis berkurang
+- Ada animasi potongan harga
+- Token langsung hangus setelah dipakai
+
+Fitur feedback:
+
+- User bisa kirim feedback/rating
+- Sistem review bintang
+- Komentar user tampil modern
+- Admin bisa balas feedback
+
+Fitur laporan bug:
+
+- Halaman report bug
+- User bisa upload screenshot bug/error
+- Admin menerima laporan di dashboard
+- Ada status: pending, fixing, solved
+
+Fitur tambahan:
+
+- Notifikasi toast modern
+- Search produk
+- Filter produk
+- Statistik penjualan
+- Statistik user
+- Grafik transaksi
+- Mode maintenance
+- Banner promo
+- Testimoni user
+- FAQ modern
+- Contact owner
+- Tombol WhatsApp langsung
+- SEO friendly
+- Loading cepat
+- Struktur code rapih dan scalable
+
+Teknologi:
+
+- Frontend modern
+- Backend secure
+- Database realtime
+- Animasi modern
+- Gunakan komponen UI premium
+- Gunakan icon modern
+- Gunakan card glassmorphism/cyberpunk modern
+
+Tema warna:
+Hitam + merah neon atau ungu neon premium.
+Jangan gunakan tampilan norak atau terlalu ramai.
+Buat seperti website hosting startup mahal dan elegan.
+
+Pastikan:
+
+- Tidak ada bug UI
+- Tidak ada elemen bertumpuk
+- Mobile friendly
+- Dashboard admin mudah dipakai
+- Checkout mudah dimengerti
+- User experience sangat bagus
+
+Buat seluruh halaman lengkap, bukan template kosong.

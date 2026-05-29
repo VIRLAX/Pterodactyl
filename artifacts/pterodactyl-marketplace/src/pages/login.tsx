@@ -10,40 +10,69 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
 import { Navbar } from "@/components/layout/Navbar";
-import { Shield, ChevronRight, Mail, KeyRound, RefreshCw, ArrowLeft } from "lucide-react";
+import {
+  LogIn, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft,
+  RefreshCw, Lock, ShieldCheck,
+} from "lucide-react";
 import { getApiUrl } from "@/lib/api";
 
-const credSchema = z.object({
+type LoginStep = "login" | "forgot_email" | "forgot_otp" | "forgot_newpass";
+
+const loginSchema = z.object({
   email: z.string().email({ message: "Email tidak valid" }),
-  password: z.string().min(6, { message: "Password minimal 6 karakter" }),
+  password: z.string().min(1, { message: "Password wajib diisi" }),
 });
-const otpSchema = z.object({
+const forgotEmailSchema = z.object({
+  email: z.string().email({ message: "Email tidak valid" }),
+});
+const forgotOtpSchema = z.object({
   otp: z.string().length(6, { message: "Kode OTP harus 6 digit" }),
 });
+const newPassSchema = z.object({
+  newPassword: z.string().min(6, { message: "Password minimal 6 karakter" }),
+  confirmPassword: z.string().min(6, { message: "Konfirmasi password wajib diisi" }),
+}).refine((d) => d.newPassword === d.confirmPassword, {
+  message: "Password tidak cocok",
+  path: ["confirmPassword"],
+});
 
-type CredValues = z.infer<typeof credSchema>;
-type OTPValues = z.infer<typeof otpSchema>;
+type LoginValues = z.infer<typeof loginSchema>;
+type ForgotEmailValues = z.infer<typeof forgotEmailSchema>;
+type ForgotOtpValues = z.infer<typeof forgotOtpSchema>;
+type NewPassValues = z.infer<typeof newPassSchema>;
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
-  const [step, setStep] = useState<"credentials" | "otp">("credentials");
-  const [maskedEmail, setMaskedEmail] = useState("");
-  const [emailValue, setEmailValue] = useState("");
-  const [loadingCred, setLoadingCred] = useState(false);
-  const [loadingOTP, setLoadingOTP] = useState(false);
+  const [step, setStep] = useState<LoginStep>("login");
+  const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const credForm = useForm<CredValues>({
-    resolver: zodResolver(credSchema),
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotMasked, setForgotMasked] = useState("");
+  const [resetToken, setResetToken] = useState("");
+
+  const loginForm = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
-  const otpForm = useForm<OTPValues>({
-    resolver: zodResolver(otpSchema),
+  const forgotEmailForm = useForm<ForgotEmailValues>({
+    resolver: zodResolver(forgotEmailSchema),
+    defaultValues: { email: "" },
+  });
+  const forgotOtpForm = useForm<ForgotOtpValues>({
+    resolver: zodResolver(forgotOtpSchema),
     defaultValues: { otp: "" },
   });
+  const newPassForm = useForm<NewPassValues>({
+    resolver: zodResolver(newPassSchema),
+    defaultValues: { newPassword: "", confirmPassword: "" },
+  });
 
-  async function onSubmitCred(data: CredValues) {
-    setLoadingCred(true);
+  async function onLogin(data: LoginValues) {
+    setLoading(true);
     try {
       const res = await fetch(`${getApiUrl()}/auth/login`, {
         method: "POST",
@@ -52,53 +81,102 @@ export default function Login() {
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error || "Login gagal. Periksa kembali email dan password.");
-        return;
-      }
-      if (json.step === "otp_required") {
-        setMaskedEmail(json.maskedEmail);
-        setEmailValue(data.email);
-        setStep("otp");
-        toast.success("Kode OTP telah dikirim ke email kamu!");
-      }
-    } catch {
-      toast.error("Gagal terhubung ke server. Coba lagi.");
-    } finally {
-      setLoadingCred(false);
-    }
-  }
-
-  async function onSubmitOTP(data: OTPValues) {
-    setLoadingOTP(true);
-    try {
-      const res = await fetch(`${getApiUrl()}/auth/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailValue, otp: data.otp }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json.error || "Kode OTP salah. Periksa email kamu dan coba lagi.");
-        otpForm.setError("otp", { message: json.error });
+        toast.error(json.error || "Login gagal. Periksa email dan password.");
         return;
       }
       login(json.token, json.user);
-      toast.success(`Selamat datang kembali, ${json.user.username}! 🎉`);
-      if (json.user.role === "admin") {
-        setLocation("/admin");
-      } else {
-        setLocation("/marketplace");
-      }
+      toast.success(`Selamat datang, ${json.user.username}!`);
+      setLocation(json.user.role === "admin" ? "/admin" : "/marketplace");
     } catch {
-      toast.error("Gagal terhubung ke server. Coba lagi.");
+      toast.error("Gagal terhubung ke server.");
     } finally {
-      setLoadingOTP(false);
+      setLoading(false);
     }
   }
 
-  function goBack() {
-    setStep("credentials");
-    otpForm.reset();
+  async function onForgotEmail(data: ForgotEmailValues) {
+    setLoading(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: data.email }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Gagal mengirim OTP.");
+        return;
+      }
+      setForgotEmail(data.email);
+      setForgotMasked(json.maskedEmail);
+      setStep("forgot_otp");
+      toast.success("Kode OTP telah dikirim ke email kamu!");
+    } catch {
+      toast.error("Gagal terhubung ke server.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onForgotOtp(data: ForgotOtpValues) {
+    setLoading(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/auth/verify-reset-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail, otp: data.otp }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Kode OTP salah.");
+        forgotOtpForm.setError("otp", { message: json.error });
+        return;
+      }
+      setResetToken(json.resetToken);
+      setStep("forgot_newpass");
+    } catch {
+      toast.error("Gagal terhubung ke server.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onNewPass(data: NewPassValues) {
+    setLoading(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail, resetToken, newPassword: data.newPassword }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Gagal mereset password.");
+        return;
+      }
+      toast.success("Password berhasil diubah! Silakan login.");
+      setStep("login");
+      newPassForm.reset();
+      forgotEmailForm.reset();
+      forgotOtpForm.reset();
+    } catch {
+      toast.error("Gagal terhubung ke server.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendForgotOtp() {
+    try {
+      await fetch(`${getApiUrl()}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      toast.success("OTP baru telah dikirim!");
+    } catch {
+      toast.error("Gagal mengirim ulang OTP.");
+    }
   }
 
   return (
@@ -107,38 +185,34 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
 
-          {step === "credentials" ? (
+          {/* ─── LOGIN ──────────────────────────────────────── */}
+          {step === "login" && (
             <>
               <div className="text-center mb-8">
                 <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 mb-4">
-                  <Shield className="w-7 h-7 text-primary" />
+                  <LogIn className="w-6 h-6 text-primary" />
                 </div>
-                <h1 className="text-2xl font-bold tracking-tight text-white mb-2">Masuk ke PteroStore</h1>
-                <p className="text-muted-foreground text-sm">Verifikasi dua langkah untuk keamanan maksimal</p>
+                <h1 className="text-2xl font-bold text-white mb-2">Masuk ke PteroStore</h1>
+                <p className="text-muted-foreground text-sm">Masukkan email dan password kamu</p>
               </div>
 
-              <Card className="glass-panel border border-white/10 shadow-[0_0_40px_rgba(255,10,60,0.05)]">
-                <CardHeader className="pb-2 pt-6">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">1</div>
-                    <CardTitle className="text-base font-semibold">Identitas Akun</CardTitle>
-                  </div>
-                  <CardDescription className="text-xs">Masukkan email & password yang terdaftar</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <Form {...credForm}>
-                    <form onSubmit={credForm.handleSubmit(onSubmitCred)} className="space-y-4">
+              <Card className="glass-panel border border-white/10 shadow-[0_0_40px_rgba(255,10,60,0.06)]">
+                <CardContent className="pt-6">
+                  <Form {...loginForm}>
+                    <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
                       <FormField
-                        control={credForm.control}
+                        control={loginForm.control}
                         name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" />Email</FormLabel>
+                            <FormLabel className="text-sm flex items-center gap-1.5">
+                              <Mail className="w-3.5 h-3.5" /> Email
+                            </FormLabel>
                             <FormControl>
                               <Input
                                 placeholder="name@gmail.com"
                                 autoComplete="email"
-                                className="bg-background/60 border-white/10 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+                                className="bg-background/60 border-white/10 focus:border-primary/50"
                                 {...field}
                               />
                             </FormControl>
@@ -147,19 +221,40 @@ export default function Login() {
                         )}
                       />
                       <FormField
-                        control={credForm.control}
+                        control={loginForm.control}
                         name="password"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm flex items-center gap-1.5"><KeyRound className="w-3.5 h-3.5" />Password</FormLabel>
+                            <div className="flex items-center justify-between">
+                              <FormLabel className="text-sm flex items-center gap-1.5">
+                                <KeyRound className="w-3.5 h-3.5" /> Password
+                              </FormLabel>
+                              <button
+                                type="button"
+                                onClick={() => setStep("forgot_email")}
+                                className="text-xs text-primary hover:text-primary/80 transition-colors"
+                              >
+                                Lupa Password?
+                              </button>
+                            </div>
                             <FormControl>
-                              <Input
-                                type="password"
-                                placeholder="••••••••"
-                                autoComplete="current-password"
-                                className="bg-background/60 border-white/10 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
-                                {...field}
-                              />
+                              <div className="relative">
+                                <Input
+                                  type={showPass ? "text" : "password"}
+                                  placeholder="••••••••"
+                                  autoComplete="current-password"
+                                  className="bg-background/60 border-white/10 focus:border-primary/50 pr-10"
+                                  {...field}
+                                />
+                                <button
+                                  type="button"
+                                  tabIndex={-1}
+                                  onClick={() => setShowPass((v) => !v)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
+                                >
+                                  {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -167,17 +262,17 @@ export default function Login() {
                       />
                       <Button
                         type="submit"
-                        disabled={loadingCred}
-                        className="w-full bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(255,10,60,0.35)] hover:shadow-[0_0_30px_rgba(255,10,60,0.55)] transition-all duration-200 mt-2"
+                        disabled={loading}
+                        className="w-full bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_rgba(255,10,60,0.3)] hover:shadow-[0_0_30px_rgba(255,10,60,0.5)] transition-all mt-2"
                       >
-                        {loadingCred ? (
+                        {loading ? (
                           <span className="flex items-center gap-2">
                             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                             Memverifikasi...
                           </span>
                         ) : (
                           <span className="flex items-center gap-2">
-                            Lanjutkan <ChevronRight className="w-4 h-4" />
+                            Masuk <ChevronRight className="w-4 h-4" />
                           </span>
                         )}
                       </Button>
@@ -195,51 +290,48 @@ export default function Login() {
               <div className="mt-4 flex items-center gap-3 px-1">
                 <div className="flex-1 h-px bg-white/10" />
                 <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Shield className="w-3 h-3" /> Dilindungi OTP via Email
+                  <ShieldCheck className="w-3 h-3" /> Sistem aman & terenkripsi
                 </span>
                 <div className="flex-1 h-px bg-white/10" />
               </div>
             </>
-          ) : (
+          )}
+
+          {/* ─── FORGOT: MASUKKAN EMAIL ──────────────────────── */}
+          {step === "forgot_email" && (
             <>
               <div className="text-center mb-8">
-                <div className="relative inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-green-500/10 border border-green-500/20 mb-4">
-                  <Mail className="w-7 h-7 text-green-400" />
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                    <span className="text-white text-[9px] font-bold">✓</span>
-                  </span>
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/20 mb-4">
+                  <Lock className="w-6 h-6 text-orange-400" />
                 </div>
-                <h1 className="text-2xl font-bold tracking-tight text-white mb-2">Periksa Email Kamu</h1>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Kode OTP 6 digit telah dikirim ke<br />
-                  <span className="text-white font-semibold">{maskedEmail}</span>
-                </p>
+                <h1 className="text-2xl font-bold text-white mb-2">Lupa Password</h1>
+                <p className="text-muted-foreground text-sm">Masukkan email akun kamu untuk menerima kode OTP</p>
               </div>
 
-              <Card className="glass-panel border border-white/10 shadow-[0_0_40px_rgba(255,10,60,0.05)]">
+              <Card className="glass-panel border border-white/10">
                 <CardHeader className="pb-2 pt-6">
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold">2</div>
-                    <CardTitle className="text-base font-semibold">Verifikasi OTP</CardTitle>
+                    <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs font-bold">1</div>
+                    <CardTitle className="text-base font-semibold">Email Akun</CardTitle>
                   </div>
-                  <CardDescription className="text-xs">Masukkan kode 6 digit dari email. Berlaku 5 menit.</CardDescription>
+                  <CardDescription className="text-xs">Kode OTP akan dikirim ke email ini</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-4">
-                  <Form {...otpForm}>
-                    <form onSubmit={otpForm.handleSubmit(onSubmitOTP)} className="space-y-4">
+                  <Form {...forgotEmailForm}>
+                    <form onSubmit={forgotEmailForm.handleSubmit(onForgotEmail)} className="space-y-4">
                       <FormField
-                        control={otpForm.control}
-                        name="otp"
+                        control={forgotEmailForm.control}
+                        name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm flex items-center gap-1.5"><KeyRound className="w-3.5 h-3.5" />Kode OTP</FormLabel>
+                            <FormLabel className="text-sm flex items-center gap-1.5">
+                              <Mail className="w-3.5 h-3.5" /> Email
+                            </FormLabel>
                             <FormControl>
                               <Input
-                                placeholder="● ● ● ● ● ●"
-                                maxLength={6}
-                                inputMode="numeric"
-                                autoComplete="one-time-code"
-                                className="bg-background/60 border-white/10 focus:border-green-500/50 focus:ring-1 focus:ring-green-500/20 transition-all text-center text-2xl tracking-[0.5em] font-mono h-14"
+                                placeholder="name@gmail.com"
+                                autoComplete="email"
+                                className="bg-background/60 border-white/10 focus:border-orange-500/50"
                                 {...field}
                               />
                             </FormControl>
@@ -247,40 +339,107 @@ export default function Login() {
                           </FormItem>
                         )}
                       />
-
-                      <div className="bg-blue-500/8 border border-blue-500/15 rounded-xl p-3.5 flex items-start gap-3">
-                        <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <span className="text-blue-400 text-xs font-bold">i</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          Cek inbox dan folder <strong className="text-white">spam/junk</strong> email kamu. Jika tidak menerima, klik tombol login ulang.
-                        </p>
-                      </div>
-
                       <Button
                         type="submit"
-                        disabled={loadingOTP}
-                        className="w-full bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.25)] hover:shadow-[0_0_30px_rgba(34,197,94,0.4)] transition-all duration-200"
+                        disabled={loading}
+                        className="w-full bg-orange-600 hover:bg-orange-500 text-white transition-all mt-2"
                       >
-                        {loadingOTP ? (
+                        {loading ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Mengirim OTP...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            Kirim OTP <ChevronRight className="w-4 h-4" />
+                          </span>
+                        )}
+                      </Button>
+                    </form>
+                  </Form>
+                  <div className="mt-4">
+                    <Button variant="ghost" className="w-full text-muted-foreground border border-white/10 hover:bg-white/5 text-sm gap-2" onClick={() => setStep("login")}>
+                      <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Login
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* ─── FORGOT: VERIFIKASI OTP ──────────────────────── */}
+          {step === "forgot_otp" && (
+            <>
+              <div className="text-center mb-8">
+                <div className="relative inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/20 mb-4">
+                  <Mail className="w-6 h-6 text-orange-400" />
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-[9px] font-bold">✓</span>
+                  </span>
+                </div>
+                <h1 className="text-2xl font-bold text-white mb-2">Periksa Email Kamu</h1>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  Kode OTP dikirim ke<br />
+                  <span className="text-white font-semibold">{forgotMasked}</span>
+                </p>
+              </div>
+
+              <Card className="glass-panel border border-white/10">
+                <CardHeader className="pb-2 pt-6">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs font-bold">2</div>
+                    <CardTitle className="text-base font-semibold">Masukkan Kode OTP</CardTitle>
+                  </div>
+                  <CardDescription className="text-xs">Berlaku 5 menit. Cek juga folder spam/junk.</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <Form {...forgotOtpForm}>
+                    <form onSubmit={forgotOtpForm.handleSubmit(onForgotOtp)} className="space-y-4">
+                      <FormField
+                        control={forgotOtpForm.control}
+                        name="otp"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm flex items-center gap-1.5">
+                              <KeyRound className="w-3.5 h-3.5" /> Kode OTP
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="● ● ● ● ● ●"
+                                maxLength={6}
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                className="bg-background/60 border-white/10 focus:border-orange-500/50 text-center text-2xl tracking-[0.5em] font-mono h-14"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-orange-600 hover:bg-orange-500 text-white transition-all"
+                      >
+                        {loading ? (
                           <span className="flex items-center gap-2">
                             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                             Memverifikasi...
                           </span>
                         ) : (
                           <span className="flex items-center gap-2">
-                            Verifikasi & Masuk <ChevronRight className="w-4 h-4" />
+                            Verifikasi OTP <ChevronRight className="w-4 h-4" />
                           </span>
                         )}
                       </Button>
                     </form>
                   </Form>
-
                   <div className="mt-4 flex gap-2">
-                    <Button variant="ghost" className="flex-1 text-muted-foreground border border-white/10 hover:border-white/20 hover:bg-white/5 text-sm gap-2" onClick={goBack}>
+                    <Button variant="ghost" className="flex-1 text-muted-foreground border border-white/10 hover:bg-white/5 text-sm gap-2" onClick={() => setStep("forgot_email")}>
                       <ArrowLeft className="w-3.5 h-3.5" /> Kembali
                     </Button>
-                    <Button variant="ghost" className="flex-1 text-primary border border-primary/20 hover:bg-primary/10 text-sm gap-2" onClick={goBack}>
+                    <Button variant="ghost" className="flex-1 text-orange-400 border border-orange-500/20 hover:bg-orange-500/10 text-sm gap-2" onClick={resendForgotOtp}>
                       <RefreshCw className="w-3.5 h-3.5" /> Kirim Ulang
                     </Button>
                   </div>
@@ -288,6 +447,112 @@ export default function Login() {
               </Card>
             </>
           )}
+
+          {/* ─── FORGOT: PASSWORD BARU ───────────────────────── */}
+          {step === "forgot_newpass" && (
+            <>
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-green-500/10 border border-green-500/20 mb-4">
+                  <Lock className="w-6 h-6 text-green-400" />
+                </div>
+                <h1 className="text-2xl font-bold text-white mb-2">Buat Password Baru</h1>
+                <p className="text-muted-foreground text-sm">Buat password yang kuat untuk akun kamu</p>
+              </div>
+
+              <Card className="glass-panel border border-white/10">
+                <CardHeader className="pb-2 pt-6">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold">3</div>
+                    <CardTitle className="text-base font-semibold">Password Baru</CardTitle>
+                  </div>
+                  <CardDescription className="text-xs">Minimal 6 karakter, pastikan kedua password cocok</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <Form {...newPassForm}>
+                    <form onSubmit={newPassForm.handleSubmit(onNewPass)} className="space-y-4">
+                      <FormField
+                        control={newPassForm.control}
+                        name="newPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm flex items-center gap-1.5">
+                              <KeyRound className="w-3.5 h-3.5" /> Password Baru
+                            </FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  type={showNew ? "text" : "password"}
+                                  placeholder="••••••••"
+                                  className="bg-background/60 border-white/10 focus:border-green-500/50 pr-10"
+                                  {...field}
+                                />
+                                <button
+                                  type="button"
+                                  tabIndex={-1}
+                                  onClick={() => setShowNew((v) => !v)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
+                                >
+                                  {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={newPassForm.control}
+                        name="confirmPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm flex items-center gap-1.5">
+                              <KeyRound className="w-3.5 h-3.5" /> Konfirmasi Password
+                            </FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  type={showConfirm ? "text" : "password"}
+                                  placeholder="••••••••"
+                                  className="bg-background/60 border-white/10 focus:border-green-500/50 pr-10"
+                                  {...field}
+                                />
+                                <button
+                                  type="button"
+                                  tabIndex={-1}
+                                  onClick={() => setShowConfirm((v) => !v)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
+                                >
+                                  {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.25)] transition-all mt-2"
+                      >
+                        {loading ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Menyimpan...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            Simpan Password Baru <ChevronRight className="w-4 h-4" />
+                          </span>
+                        )}
+                      </Button>
+                    </form>
+                  </Form>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
         </div>
       </div>
     </div>

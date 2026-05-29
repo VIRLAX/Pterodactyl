@@ -1,115 +1,383 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useRegisterUser } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
 import { Navbar } from "@/components/layout/Navbar";
+import {
+  UserPlus, Mail, KeyRound, User, Eye, EyeOff,
+  ChevronRight, ArrowLeft, RefreshCw, ShieldCheck,
+} from "lucide-react";
+import { getApiUrl } from "@/lib/api";
+
+type RegisterStep = "form" | "otp";
 
 const registerSchema = z.object({
-  username: z.string().min(3, { message: "Username must be at least 3 characters" }),
-  email: z.string().email({ message: "Invalid email address" }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+  username: z.string().min(3, { message: "Username minimal 3 karakter" }),
+  email: z.string().email({ message: "Email tidak valid" }),
+  password: z.string().min(6, { message: "Password minimal 6 karakter" }),
+  confirmPassword: z.string().min(1, { message: "Konfirmasi password wajib diisi" }),
+}).refine((d) => d.password === d.confirmPassword, {
+  message: "Password tidak cocok",
+  path: ["confirmPassword"],
 });
 
-type RegisterFormValues = z.infer<typeof registerSchema>;
+const otpSchema = z.object({
+  otp: z.string().length(6, { message: "Kode OTP harus 6 digit" }),
+});
+
+type RegisterValues = z.infer<typeof registerSchema>;
+type OtpValues = z.infer<typeof otpSchema>;
 
 export default function Register() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
-  const registerMutation = useRegisterUser();
+  const [step, setStep] = useState<RegisterStep>("form");
+  const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [emailValue, setEmailValue] = useState("");
+  const [maskedEmail, setMaskedEmail] = useState("");
 
-  const form = useForm<RegisterFormValues>({
+  const registerForm = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: {
-      username: "",
-      email: "",
-      password: "",
-    },
+    defaultValues: { username: "", email: "", password: "", confirmPassword: "" },
   });
 
-  function onSubmit(data: RegisterFormValues) {
-    registerMutation.mutate({ data }, {
-      onSuccess: (response) => {
-        login(response.token, response.user);
-        toast.success("Account created successfully!");
-        setLocation("/marketplace");
-      },
-      onError: (error: any) => {
-        toast.error(error.message || "Failed to register. Please try again.");
+  const otpForm = useForm<OtpValues>({
+    resolver: zodResolver(otpSchema),
+    defaultValues: { otp: "" },
+  });
+
+  async function onRegister(data: RegisterValues) {
+    setLoading(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: data.username, email: data.email, password: data.password }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Pendaftaran gagal. Coba lagi.");
+        return;
       }
-    });
+      setEmailValue(data.email);
+      setMaskedEmail(json.maskedEmail);
+      setStep("otp");
+      toast.success("Kode OTP dikirim ke email kamu!");
+    } catch {
+      toast.error("Gagal terhubung ke server.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onVerifyOtp(data: OtpValues) {
+    setLoading(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/auth/verify-registration`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailValue, otp: data.otp }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Kode OTP salah. Coba lagi.");
+        otpForm.setError("otp", { message: json.error });
+        return;
+      }
+      login(json.token, json.user);
+      toast.success(`Akun berhasil dibuat! Selamat datang, ${json.user.username}! 🎉`);
+      setLocation("/marketplace");
+    } catch {
+      toast.error("Gagal terhubung ke server.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendOtp() {
+    const vals = registerForm.getValues();
+    if (!vals.email) return;
+    try {
+      await fetch(`${getApiUrl()}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: vals.username, email: vals.email, password: vals.password }),
+      });
+      toast.success("OTP baru telah dikirim!");
+    } catch {
+      toast.error("Gagal mengirim ulang OTP.");
+    }
   }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
       <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md glass-panel neon-border-secondary border-t-2">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold tracking-tight text-center">Create an Account</CardTitle>
-            <CardDescription className="text-center">Enter your details to create your account</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Username</FormLabel>
-                      <FormControl>
-                        <Input placeholder="gamer123" className="bg-background/50" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="name@example.com" className="bg-background/50" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="••••••••" className="bg-background/50" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-[0_0_15px_rgba(150,10,255,0.5)]" disabled={registerMutation.isPending}>
-                  {registerMutation.isPending ? "Creating account..." : "Sign Up"}
-                </Button>
-              </form>
-            </Form>
-            <div className="mt-4 text-center text-sm">
-              <span className="text-muted-foreground">Already have an account? </span>
-              <Button variant="link" className="p-0 text-secondary hover:text-secondary/80" onClick={() => setLocation("/login")}>
-                Sign in
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="w-full max-w-md">
+
+          {/* ─── FORM PENDAFTARAN ─────────────────────────────── */}
+          {step === "form" && (
+            <>
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-secondary/10 border border-secondary/20 mb-4">
+                  <UserPlus className="w-6 h-6 text-secondary" />
+                </div>
+                <h1 className="text-2xl font-bold text-white mb-2">Buat Akun Baru</h1>
+                <p className="text-muted-foreground text-sm">Daftar dan mulai belanja panel Pterodactyl</p>
+              </div>
+
+              <Card className="glass-panel border border-white/10 shadow-[0_0_40px_rgba(150,10,255,0.06)]">
+                <CardHeader className="pb-2 pt-6">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-white text-xs font-bold">1</div>
+                    <CardTitle className="text-base font-semibold">Data Akun</CardTitle>
+                  </div>
+                  <CardDescription className="text-xs">Email kamu akan diverifikasi via OTP setelah ini</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <Form {...registerForm}>
+                    <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
+                      <FormField
+                        control={registerForm.control}
+                        name="username"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm flex items-center gap-1.5">
+                              <User className="w-3.5 h-3.5" /> Username
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="gamer123"
+                                autoComplete="username"
+                                className="bg-background/60 border-white/10 focus:border-secondary/50"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={registerForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm flex items-center gap-1.5">
+                              <Mail className="w-3.5 h-3.5" /> Email
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="name@gmail.com"
+                                autoComplete="email"
+                                className="bg-background/60 border-white/10 focus:border-secondary/50"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={registerForm.control}
+                        name="password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm flex items-center gap-1.5">
+                              <KeyRound className="w-3.5 h-3.5" /> Password
+                            </FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  type={showPass ? "text" : "password"}
+                                  placeholder="••••••••"
+                                  autoComplete="new-password"
+                                  className="bg-background/60 border-white/10 focus:border-secondary/50 pr-10"
+                                  {...field}
+                                />
+                                <button
+                                  type="button"
+                                  tabIndex={-1}
+                                  onClick={() => setShowPass((v) => !v)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
+                                >
+                                  {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={registerForm.control}
+                        name="confirmPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm flex items-center gap-1.5">
+                              <KeyRound className="w-3.5 h-3.5" /> Konfirmasi Password
+                            </FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  type={showConfirm ? "text" : "password"}
+                                  placeholder="••••••••"
+                                  autoComplete="new-password"
+                                  className="bg-background/60 border-white/10 focus:border-secondary/50 pr-10"
+                                  {...field}
+                                />
+                                <button
+                                  type="button"
+                                  tabIndex={-1}
+                                  onClick={() => setShowConfirm((v) => !v)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
+                                >
+                                  {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-secondary hover:bg-secondary/90 text-white shadow-[0_0_20px_rgba(150,10,255,0.35)] hover:shadow-[0_0_30px_rgba(150,10,255,0.55)] transition-all mt-2"
+                      >
+                        {loading ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Memproses...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            Daftar & Verifikasi Email <ChevronRight className="w-4 h-4" />
+                          </span>
+                        )}
+                      </Button>
+                    </form>
+                  </Form>
+                  <div className="mt-5 text-center text-sm">
+                    <span className="text-muted-foreground">Sudah punya akun? </span>
+                    <Button variant="link" className="p-0 text-secondary hover:text-secondary/80 font-medium" onClick={() => setLocation("/login")}>
+                      Masuk di sini
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="mt-4 flex items-center gap-3 px-1">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <ShieldCheck className="w-3 h-3" /> Data kamu aman & terenkripsi
+                </span>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+            </>
+          )}
+
+          {/* ─── VERIFIKASI OTP ───────────────────────────────── */}
+          {step === "otp" && (
+            <>
+              <div className="text-center mb-8">
+                <div className="relative inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-green-500/10 border border-green-500/20 mb-4">
+                  <Mail className="w-6 h-6 text-green-400" />
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-[9px] font-bold">✓</span>
+                  </span>
+                </div>
+                <h1 className="text-2xl font-bold text-white mb-2">Verifikasi Email</h1>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  Kode OTP 6 digit dikirim ke<br />
+                  <span className="text-white font-semibold">{maskedEmail}</span>
+                </p>
+              </div>
+
+              <Card className="glass-panel border border-white/10 shadow-[0_0_40px_rgba(34,197,94,0.05)]">
+                <CardHeader className="pb-2 pt-6">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold">2</div>
+                    <CardTitle className="text-base font-semibold">Verifikasi OTP</CardTitle>
+                  </div>
+                  <CardDescription className="text-xs">Masukkan kode 6 digit dari email. Berlaku 5 menit.</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <Form {...otpForm}>
+                    <form onSubmit={otpForm.handleSubmit(onVerifyOtp)} className="space-y-4">
+                      <FormField
+                        control={otpForm.control}
+                        name="otp"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm flex items-center gap-1.5">
+                              <KeyRound className="w-3.5 h-3.5" /> Kode OTP
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="● ● ● ● ● ●"
+                                maxLength={6}
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                className="bg-background/60 border-white/10 focus:border-green-500/50 text-center text-2xl tracking-[0.5em] font-mono h-14"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="bg-blue-500/8 border border-blue-500/15 rounded-xl p-3.5 flex items-start gap-3">
+                        <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-blue-400 text-xs font-bold">i</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Cek inbox dan folder <strong className="text-white">spam/junk</strong>. OTP dikirim real-time ke Gmail kamu.
+                        </p>
+                      </div>
+
+                      <Button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.25)] transition-all"
+                      >
+                        {loading ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Membuat Akun...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            Verifikasi & Buat Akun <ChevronRight className="w-4 h-4" />
+                          </span>
+                        )}
+                      </Button>
+                    </form>
+                  </Form>
+
+                  <div className="mt-4 flex gap-2">
+                    <Button variant="ghost" className="flex-1 text-muted-foreground border border-white/10 hover:bg-white/5 text-sm gap-2" onClick={() => { setStep("form"); otpForm.reset(); }}>
+                      <ArrowLeft className="w-3.5 h-3.5" /> Kembali
+                    </Button>
+                    <Button variant="ghost" className="flex-1 text-green-400 border border-green-500/20 hover:bg-green-500/10 text-sm gap-2" onClick={resendOtp}>
+                      <RefreshCw className="w-3.5 h-3.5" /> Kirim Ulang
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+        </div>
       </div>
     </div>
   );

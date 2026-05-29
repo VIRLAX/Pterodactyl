@@ -40,7 +40,10 @@ export default function Checkout() {
     query: {
       enabled: !!orderId && isAuthenticated,
       queryKey: getGetOrderQueryKey(Number(orderId)),
-      refetchInterval: order?.status === "pending" || order?.status === "paid" ? 5000 : false,
+      refetchInterval: (query: any) => {
+        const d = query.state?.data as any;
+        return d?.status === "pending" || d?.status === "paid" ? 5000 : false;
+      },
     }
   });
 
@@ -52,27 +55,35 @@ export default function Checkout() {
 
   const danaNumber = (settings as any)?.danaNumber ?? "—";
   const danaName = (settings as any)?.danaName ?? "Admin PteroStore";
-  const waNumber = (settings as any)?.whatsappNumber ?? "628123456789";
+  const WA_ADMIN = "6282185270722";
 
   const buildWhatsappMessage = () => {
     if (!order) return "";
     const productName = (order as any).product?.name ?? `Produk #${(order as any).productId}`;
-    let msg = `Halo Admin PteroStore! 👋\n\nSaya ingin konfirmasi pesanan saya:\n`;
-    msg += `📋 *Invoice:* ${order.invoiceNumber}\n`;
+    const now = new Date().toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" });
+    let msg = `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `🛒 *PESANAN PTEROSTORE*\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+    msg += `Halo Admin! 👋 Saya ingin konfirmasi pesanan saya:\n\n`;
+    msg += `📋 *Invoice:* \`${order.invoiceNumber}\`\n`;
     msg += `📦 *Produk:* ${productName}\n`;
-    msg += `💰 *Harga Normal:* Rp ${order.originalPrice.toLocaleString("id-ID")}\n`;
+    msg += `🕐 *Waktu Order:* ${now}\n\n`;
+    msg += `💰 *Rincian Pembayaran:*\n`;
+    msg += `   Harga Normal   : Rp ${order.originalPrice.toLocaleString("id-ID")}\n`;
     if (order.discountAmount > 0) {
-      msg += `🎟️ *Diskon (${order.discountCode}):* -Rp ${order.discountAmount.toLocaleString("id-ID")}\n`;
+      msg += `   Diskon (${order.discountCode}) : -Rp ${order.discountAmount.toLocaleString("id-ID")}\n`;
     }
-    msg += `✅ *Total Bayar:* Rp ${order.finalPrice.toLocaleString("id-ID")}\n`;
-    msg += `💳 *Metode:* ${order.paymentMethod?.toUpperCase() ?? "-"}\n\n`;
-    msg += `Mohon konfirmasi pembayaran saya. Terima kasih!`;
+    msg += `   ─────────────────────\n`;
+    msg += `   *Total Bayar   : Rp ${order.finalPrice.toLocaleString("id-ID")}*\n\n`;
+    msg += `💳 *Metode Bayar:* ${order.paymentMethod?.toUpperCase() ?? "-"}\n\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `Mohon konfirmasi pembayaran saya. Terima kasih! 🙏`;
     return encodeURIComponent(msg);
   };
 
   const openWhatsapp = () => {
     const msg = buildWhatsappMessage();
-    window.open(`https://wa.me/${waNumber}?text=${msg}`, "_blank");
+    window.open(`https://wa.me/${WA_ADMIN}?text=${msg}`, "_blank");
   };
 
   const handleValidateDiscount = () => {

@@ -69,6 +69,8 @@ export default function ProductDetail() {
   const createReview = useCreateReview();
   const validateDiscount = useValidateDiscount();
 
+  const WA_ADMIN = "6282185270722";
+
   const handleCheckout = () => {
     if (!isAuthenticated) {
       toast.error("Login dulu untuk melanjutkan pembelian!");
@@ -82,7 +84,29 @@ export default function ProductDetail() {
         discountCode: discountInfo?.valid ? discountCode : undefined,
       }
     }, {
-      onSuccess: (order) => setLocation(`/checkout/${order.id}`),
+      onSuccess: (order: any) => {
+        const productName = product?.name ?? `Produk #${id}`;
+        const now = new Date().toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" });
+        let msg = `━━━━━━━━━━━━━━━━━━━━\n`;
+        msg += `🛒 *PESANAN PTEROSTORE*\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+        msg += `Halo Admin! 👋 Saya baru saja membuat pesanan:\n\n`;
+        msg += `📋 *Invoice:* \`${order.invoiceNumber}\`\n`;
+        msg += `📦 *Produk:* ${productName}\n`;
+        msg += `🕐 *Waktu Order:* ${now}\n\n`;
+        msg += `💰 *Rincian Pembayaran:*\n`;
+        msg += `   Harga     : Rp ${order.originalPrice?.toLocaleString("id-ID") ?? "-"}\n`;
+        if (order.discountAmount > 0) {
+          msg += `   Diskon    : -Rp ${order.discountAmount?.toLocaleString("id-ID")}\n`;
+        }
+        msg += `   ─────────────────────\n`;
+        msg += `   *Total    : Rp ${order.finalPrice?.toLocaleString("id-ID") ?? "-"}*\n\n`;
+        msg += `💳 *Metode:* ${paymentMethod.toUpperCase()}\n\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+        msg += `Mohon diproses. Terima kasih! 🙏`;
+        window.open(`https://wa.me/${WA_ADMIN}?text=${encodeURIComponent(msg)}`, "_blank");
+        setLocation(`/checkout/${order.id}`);
+      },
       onError: () => toast.error("Gagal memulai checkout, coba lagi"),
     });
   };

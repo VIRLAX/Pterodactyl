@@ -13,7 +13,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import {
   LogIn, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft,
   RefreshCw, Lock, ShieldCheck, CheckCircle2, XCircle, Users,
-  Copy, ChevronDown,
+  Copy, ChevronDown, Monitor,
 } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
 
@@ -279,6 +279,27 @@ export default function Login() {
 
           {step === "login" && (
             <>
+              {/* Device ID strip */}
+              <div className="mb-5 flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Monitor className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">ID Perangkat</p>
+                    <p className="text-xs text-white/60 font-mono truncate">{getOrCreateDeviceId().slice(0, 18)}…</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(getOrCreateDeviceId());
+                    toast.success("ID Perangkat disalin!");
+                  }}
+                  className="flex-shrink-0 flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 border border-primary/20 rounded-lg px-2.5 py-1 transition-colors hover:bg-primary/10"
+                >
+                  <Copy className="w-3 h-3" /> Salin
+                </button>
+              </div>
+
               <div className="text-center mb-8">
                 <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 mb-4">
                   <LogIn className="w-6 h-6 text-primary" />

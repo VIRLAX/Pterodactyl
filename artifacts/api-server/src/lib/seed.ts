@@ -1,5 +1,5 @@
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, ne } from "drizzle-orm";
 import { hashPassword } from "./auth.js";
 import { logger } from "./logger.js";
 
@@ -16,7 +16,14 @@ export async function seedAdmin() {
       .limit(1);
 
     if (existing.length > 0) {
-      logger.info("Admin account already exists, skipping seed.");
+      const admin = existing[0];
+      if (!admin.passwordHash.startsWith("$2")) {
+        const newHash = hashPassword(ADMIN_PASSWORD);
+        await db.update(usersTable).set({ passwordHash: newHash }).where(eq(usersTable.id, admin.id));
+        logger.info("Admin password upgraded to bcrypt.");
+      } else {
+        logger.info("Admin account already exists, skipping seed.");
+      }
       return;
     }
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, ordersTable, productsTable, usersTable, discountsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth.js";
 import crypto from "crypto";
 
@@ -15,7 +15,11 @@ function generateInvoice(): string {
 
 async function enrichOrder(order: any) {
   const [product] = await db.select().from(productsTable).where(eq(productsTable.id, order.productId)).limit(1);
-  const [user] = await db.select({ id: usersTable.id, username: usersTable.username, email: usersTable.email, role: usersTable.role, createdAt: usersTable.createdAt }).from(usersTable).where(eq(usersTable.id, order.userId)).limit(1);
+  const [user] = await db
+    .select({ id: usersTable.id, username: usersTable.username, email: usersTable.email, role: usersTable.role, createdAt: usersTable.createdAt })
+    .from(usersTable)
+    .where(eq(usersTable.id, order.userId))
+    .limit(1);
   return { ...order, product, user };
 }
 
@@ -42,23 +46,23 @@ router.post("/orders", requireAuth, async (req, res) => {
     const { productId, paymentMethod, discountCode, notes } = req.body;
 
     const [product] = await db.select().from(productsTable).where(eq(productsTable.id, productId)).limit(1);
-    if (!product) return res.status(400).json({ error: "Product not found" });
-    if (product.status === "sold_out") return res.status(400).json({ error: "Product is sold out" });
+    if (!product) return res.status(400).json({ error: "Produk tidak ditemukan" });
+    if (product.status === "sold_out") return res.status(400).json({ error: "Produk sedang habis" });
 
     let discountAmount = 0;
     let finalPrice = product.price;
+    let appliedCode: string | null = null;
 
     if (discountCode) {
       const [discount] = await db.select().from(discountsTable).where(eq(discountsTable.code, discountCode)).limit(1);
       if (discount && !discount.isUsed) {
         if (!discount.expiresAt || new Date(discount.expiresAt) > new Date()) {
-          // For invite discounts, check product eligibility
           if (discount.type === "invite" && !product.eligibleForInviteDiscount) {
-            return res.status(400).json({ error: "Invite discount not valid for this product" });
+            return res.status(400).json({ error: "Token invite tidak berlaku untuk produk ini" });
           }
           discountAmount = product.price * (discount.percentOff / 100);
           finalPrice = product.price - discountAmount;
-          // Mark discount as used
+          appliedCode = discountCode;
           await db.update(discountsTable).set({ isUsed: true, usedAt: new Date(), usedByUserId: userId }).where(eq(discountsTable.id, discount.id));
         }
       }
@@ -71,7 +75,7 @@ router.post("/orders", requireAuth, async (req, res) => {
       originalPrice: product.price,
       discountAmount,
       finalPrice,
-      discountCode: discountCode || null,
+      discountCode: appliedCode,
       paymentMethod,
       status: "pending",
       notes: notes || null,
@@ -91,9 +95,9 @@ router.get("/orders/:id", requireAuth, async (req, res) => {
     const user = (req as any).user;
     const id = Number(req.params.id);
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
-    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" });
     if (user.role !== "admin" && order.userId !== user.userId) {
-      return res.status(403).json({ error: "Forbidden" });
+      return res.status(403).json({ error: "Akses ditolak" });
     }
     return res.json(await enrichOrder(order));
   } catch (err) {
@@ -105,9 +109,17 @@ router.get("/orders/:id", requireAuth, async (req, res) => {
 router.patch("/orders/:id/status", requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { status, notes } = req.body;
-    const [order] = await db.update(ordersTable).set({ status, notes: notes || undefined, updatedAt: new Date() }).where(eq(ordersTable.id, id)).returning();
-    if (!order) return res.status(404).json({ error: "Order not found" });
+    const { status, notes, deliveryDomain, deliveryUsername, deliveryPassword, deliveryTos } = req.body;
+
+    const updateData: any = { status, updatedAt: new Date() };
+    if (notes !== undefined) updateData.notes = notes;
+    if (deliveryDomain !== undefined) updateData.deliveryDomain = deliveryDomain;
+    if (deliveryUsername !== undefined) updateData.deliveryUsername = deliveryUsername;
+    if (deliveryPassword !== undefined) updateData.deliveryPassword = deliveryPassword;
+    if (deliveryTos !== undefined) updateData.deliveryTos = deliveryTos;
+
+    const [order] = await db.update(ordersTable).set(updateData).where(eq(ordersTable.id, id)).returning();
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" });
     return res.json(await enrichOrder(order));
   } catch (err) {
     console.error(err);
@@ -120,15 +132,17 @@ router.post("/orders/:id/payment-proof", requireAuth, async (req, res) => {
     const userId = (req as any).user.userId;
     const id = Number(req.params.id);
     const { proofBase64 } = req.body;
-    if (!proofBase64) return res.status(400).json({ error: "Missing proof" });
+    if (!proofBase64) return res.status(400).json({ error: "Bukti pembayaran wajib dilampirkan" });
 
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id)).limit(1);
-    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" });
     if (order.userId !== userId && (req as any).user.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
+      return res.status(403).json({ error: "Akses ditolak" });
+    }
+    if (order.status !== "pending") {
+      return res.status(400).json({ error: "Bukti hanya bisa diupload saat status masih pending" });
     }
 
-    // Store base64 as data URL (in production use object storage)
     const proofUrl = proofBase64.startsWith("data:") ? proofBase64 : `data:image/jpeg;base64,${proofBase64}`;
     const [updated] = await db.update(ordersTable).set({ paymentProofUrl: proofUrl, status: "paid", updatedAt: new Date() }).where(eq(ordersTable.id, id)).returning();
     return res.json(await enrichOrder(updated));

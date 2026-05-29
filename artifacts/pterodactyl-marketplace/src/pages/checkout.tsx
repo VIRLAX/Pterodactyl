@@ -7,15 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 import {
   useGetOrder, getGetOrderQueryKey,
-  useValidateDiscount, useUploadPaymentProof
+  useValidateDiscount, useUploadPaymentProof,
+  useGetSettings,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle, Copy, Check, AlertCircle, Upload,
-  Smartphone, QrCode, Clock, Package
+  Smartphone, QrCode, Clock, Package, MessageCircle,
+  ShieldCheck, Globe, User, KeyRound, FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,21 +31,49 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState<"dana" | "qris">("dana");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedDana, setCopiedDana] = useState(false);
+  const [copiedAmount, setCopiedAmount] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: order, isLoading } = useGetOrder(Number(orderId), {
     query: {
       enabled: !!orderId && isAuthenticated,
       queryKey: getGetOrderQueryKey(Number(orderId)),
-      refetchInterval: 5000,
+      refetchInterval: order?.status === "pending" || order?.status === "paid" ? 5000 : false,
     }
   });
 
+  const { data: settings } = useGetSettings();
   const validateDiscount = useValidateDiscount();
   const uploadProof = useUploadPaymentProof();
 
   if (!isAuthenticated) { setLocation("/login"); return null; }
+
+  const danaNumber = (settings as any)?.danaNumber ?? "—";
+  const danaName = (settings as any)?.danaName ?? "Admin PteroStore";
+  const waNumber = (settings as any)?.whatsappNumber ?? "628123456789";
+
+  const buildWhatsappMessage = () => {
+    if (!order) return "";
+    const productName = (order as any).product?.name ?? `Produk #${(order as any).productId}`;
+    let msg = `Halo Admin PteroStore! 👋\n\nSaya ingin konfirmasi pesanan saya:\n`;
+    msg += `📋 *Invoice:* ${order.invoiceNumber}\n`;
+    msg += `📦 *Produk:* ${productName}\n`;
+    msg += `💰 *Harga Normal:* Rp ${order.originalPrice.toLocaleString("id-ID")}\n`;
+    if (order.discountAmount > 0) {
+      msg += `🎟️ *Diskon (${order.discountCode}):* -Rp ${order.discountAmount.toLocaleString("id-ID")}\n`;
+    }
+    msg += `✅ *Total Bayar:* Rp ${order.finalPrice.toLocaleString("id-ID")}\n`;
+    msg += `💳 *Metode:* ${order.paymentMethod?.toUpperCase() ?? "-"}\n\n`;
+    msg += `Mohon konfirmasi pembayaran saya. Terima kasih!`;
+    return encodeURIComponent(msg);
+  };
+
+  const openWhatsapp = () => {
+    const msg = buildWhatsappMessage();
+    window.open(`https://wa.me/${waNumber}?text=${msg}`, "_blank");
+  };
 
   const handleValidateDiscount = () => {
     if (!discountCode.trim() || !order) return;
@@ -52,13 +81,8 @@ export default function Checkout() {
       data: { code: discountCode.trim().toUpperCase(), productId: (order as any).productId }
     }, {
       onSuccess: (data: any) => {
-        if (data.valid) {
-          setDiscountInfo(data);
-          toast.success(data.message);
-        } else {
-          toast.error(data.message);
-          setDiscountInfo(null);
-        }
+        if (data.valid) { setDiscountInfo(data); toast.success(data.message); }
+        else { toast.error(data.message); setDiscountInfo(null); }
       },
       onError: () => toast.error("Gagal memvalidasi token"),
     });
@@ -67,6 +91,7 @@ export default function Checkout() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error("Ukuran file maksimal 5MB"); return; }
     setProofFile(file);
     const reader = new FileReader();
     reader.onload = (ev) => setProofPreview(ev.target?.result as string);
@@ -80,22 +105,23 @@ export default function Checkout() {
         toast.success("Bukti pembayaran berhasil diupload! Menunggu konfirmasi admin.");
         qc.invalidateQueries({ queryKey: getGetOrderQueryKey(Number(orderId)) });
       },
-      onError: () => toast.error("Gagal mengupload bukti"),
+      onError: (err: any) => toast.error(err?.message ?? "Gagal mengupload bukti"),
     });
   };
 
-  const copyDana = (text: string) => {
+  const copyText = (text: string, type: "dana" | "amount") => {
     navigator.clipboard.writeText(text);
-    setCopied(true);
+    if (type === "dana") { setCopiedDana(true); setTimeout(() => setCopiedDana(false), 2000); }
+    else { setCopiedAmount(true); setTimeout(() => setCopiedAmount(false), 2000); }
     toast.success("Disalin!");
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
     pending: { label: "Menunggu Pembayaran", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30", icon: Clock },
-    paid: { label: "Bukti Diterima — Menunggu Konfirmasi", color: "bg-blue-500/20 text-blue-400 border-blue-500/30", icon: Clock },
-    confirmed: { label: "Pembayaran Dikonfirmasi!", color: "bg-green-500/20 text-green-400 border-green-500/30", icon: CheckCircle },
+    paid: { label: "Bukti Diterima — Menunggu Konfirmasi Admin", color: "bg-blue-500/20 text-blue-400 border-blue-500/30", icon: Clock },
+    confirmed: { label: "Pembayaran Dikonfirmasi — Panel Siap!", color: "bg-green-500/20 text-green-400 border-green-500/30", icon: CheckCircle },
     rejected: { label: "Pembayaran Ditolak", color: "bg-red-500/20 text-red-400 border-red-500/30", icon: AlertCircle },
+    cancelled: { label: "Pesanan Dibatalkan", color: "bg-gray-500/20 text-gray-400 border-gray-500/30", icon: AlertCircle },
   };
 
   if (isLoading) {
@@ -127,6 +153,10 @@ export default function Checkout() {
 
   const statusInfo = statusConfig[order.status] || statusConfig.pending;
   const StatusIcon = statusInfo.icon;
+  const hasDelivery = order.status === "confirmed" && (
+    (order as any).deliveryDomain || (order as any).deliveryUsername ||
+    (order as any).deliveryPassword || (order as any).deliveryTos
+  );
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -162,26 +192,25 @@ export default function Checkout() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Harga Normal</span>
-                  <span>Rp {order.originalPrice.toLocaleString()}</span>
+                  <span>Rp {order.originalPrice.toLocaleString("id-ID")}</span>
                 </div>
                 {order.discountAmount > 0 && (
                   <div className="flex justify-between text-green-400">
                     <span>Diskon ({order.discountCode})</span>
-                    <span>-Rp {order.discountAmount.toLocaleString()}</span>
+                    <span>-Rp {order.discountAmount.toLocaleString("id-ID")}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold pt-2 border-t border-white/10 text-white">
                   <span>Total Bayar</span>
-                  <span className="text-primary text-lg">Rp {order.finalPrice.toLocaleString()}</span>
+                  <span className="text-primary text-lg">Rp {order.finalPrice.toLocaleString("id-ID")}</span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Only show payment section if still pending */}
+          {/* PENDING: Payment section */}
           {order.status === "pending" && (
             <>
-              {/* Payment Method */}
               <Card className="glass-panel border-white/10">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Metode Pembayaran</CardTitle>
@@ -216,38 +245,54 @@ export default function Checkout() {
                       <div className="flex items-center justify-between bg-white/5 rounded-lg px-4 py-3">
                         <div>
                           <p className="text-xs text-muted-foreground">Nomor Dana</p>
-                          <p className="font-mono font-bold text-white text-lg">0812-3456-7890</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">a.n. PteroStore</p>
+                          <p className="font-mono font-bold text-white text-lg">{danaNumber}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">a.n. {danaName}</p>
                         </div>
                         <Button
-                          variant="ghost"
-                          size="icon"
+                          variant="ghost" size="icon"
                           className="text-primary hover:bg-primary/10"
-                          onClick={() => copyDana("081234567890")}
+                          onClick={() => copyText(danaNumber.replace(/-/g, ""), "dana")}
                         >
-                          {copied ? <Check className="h-5 w-5 text-green-400" /> : <Copy className="h-5 w-5" />}
+                          {copiedDana ? <Check className="h-5 w-5 text-green-400" /> : <Copy className="h-5 w-5" />}
                         </Button>
                       </div>
                       <div className="flex items-center justify-between bg-primary/10 rounded-lg px-4 py-3 border border-primary/20">
                         <div>
-                          <p className="text-xs text-muted-foreground">Jumlah Transfer</p>
-                          <p className="font-mono font-bold text-primary text-xl">Rp {order.finalPrice.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Jumlah Transfer (tepat)</p>
+                          <p className="font-mono font-bold text-primary text-xl">Rp {order.finalPrice.toLocaleString("id-ID")}</p>
                         </div>
-                        <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10" onClick={() => copyDana(order.finalPrice.toString())}>
-                          {copied ? <Check className="h-5 w-5 text-green-400" /> : <Copy className="h-5 w-5" />}
+                        <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10"
+                          onClick={() => copyText(String(order.finalPrice), "amount")}>
+                          {copiedAmount ? <Check className="h-5 w-5 text-green-400" /> : <Copy className="h-5 w-5" />}
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">⚠️ Transfer tepat sesuai nominal untuk mempercepat konfirmasi</p>
+
+                      <Button
+                        onClick={openWhatsapp}
+                        className="w-full bg-green-600 hover:bg-green-500 text-white gap-2"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        Konfirmasi via WhatsApp Admin
+                      </Button>
                     </div>
                   )}
 
                   {paymentMethod === "qris" && (
                     <div className="bg-background/50 rounded-xl p-5 flex flex-col items-center gap-4">
                       <p className="text-sm text-muted-foreground">Scan QR code di bawah dengan aplikasi e-wallet apapun</p>
-                      <div className="w-48 h-48 bg-white rounded-xl flex items-center justify-center border border-white/20">
-                        <QrCode className="h-24 w-24 text-black" />
-                      </div>
-                      <p className="text-xs text-muted-foreground">Bayar tepat: <span className="text-white font-bold">Rp {order.finalPrice.toLocaleString()}</span></p>
+                      {(settings as any)?.qrisImageUrl ? (
+                        <img src={(settings as any).qrisImageUrl} alt="QRIS" className="w-48 h-48 rounded-xl object-contain border border-white/20" />
+                      ) : (
+                        <div className="w-48 h-48 bg-white rounded-xl flex items-center justify-center border border-white/20">
+                          <QrCode className="h-24 w-24 text-black" />
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">Bayar tepat: <span className="text-white font-bold">Rp {order.finalPrice.toLocaleString("id-ID")}</span></p>
+                      <Button onClick={openWhatsapp} className="w-full bg-green-600 hover:bg-green-500 text-white gap-2">
+                        <MessageCircle className="h-4 w-4" />
+                        Konfirmasi via WhatsApp Admin
+                      </Button>
                     </div>
                   )}
                 </CardContent>
@@ -260,7 +305,6 @@ export default function Checkout() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-
                   {proofPreview ? (
                     <div className="space-y-3">
                       <img src={proofPreview} alt="Bukti" className="w-full max-h-56 object-contain rounded-xl border border-white/10" />
@@ -295,37 +339,137 @@ export default function Checkout() {
             </>
           )}
 
-          {/* Paid — waiting confirmation */}
+          {/* PAID — waiting confirmation */}
           {order.status === "paid" && (
             <Card className="glass-panel border-blue-500/30">
-              <CardContent className="p-6 text-center space-y-3">
-                <Clock className="h-12 w-12 text-blue-400 mx-auto" />
-                <h3 className="text-lg font-bold text-white">Bukti Pembayaran Diterima</h3>
-                <p className="text-muted-foreground text-sm">Admin sedang memverifikasi pembayaran Anda. Proses biasanya memakan waktu 1-30 menit.</p>
+              <CardContent className="p-6 space-y-4">
+                <div className="text-center space-y-3">
+                  <Clock className="h-12 w-12 text-blue-400 mx-auto" />
+                  <h3 className="text-lg font-bold text-white">Bukti Pembayaran Diterima</h3>
+                  <p className="text-muted-foreground text-sm">Admin sedang memverifikasi pembayaran. Proses biasanya 1–30 menit.</p>
+                </div>
                 {order.paymentProofUrl && (
-                  <img src={order.paymentProofUrl} alt="Bukti" className="w-full max-h-48 object-contain rounded-lg border border-white/10 mt-2" />
+                  <img src={order.paymentProofUrl} alt="Bukti" className="w-full max-h-48 object-contain rounded-lg border border-white/10" />
                 )}
+                <Button onClick={openWhatsapp} className="w-full bg-green-600 hover:bg-green-500 text-white gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  Hubungi Admin via WhatsApp
+                </Button>
               </CardContent>
             </Card>
           )}
 
-          {/* Confirmed */}
+          {/* CONFIRMED — show delivery info */}
           {order.status === "confirmed" && (
             <Card className="glass-panel border-green-500/30">
-              <CardContent className="p-8 text-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
-                  <CheckCircle className="h-8 w-8 text-green-400" />
+              <CardContent className="p-8 space-y-6">
+                <div className="text-center space-y-3">
+                  <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
+                    <CheckCircle className="h-8 w-8 text-green-400" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white">Pembayaran Berhasil Dikonfirmasi!</h3>
+                  <p className="text-muted-foreground text-sm">Pesanan kamu telah dikonfirmasi oleh admin.</p>
                 </div>
-                <h3 className="text-xl font-bold text-white">Pembayaran Berhasil!</h3>
-                <p className="text-muted-foreground text-sm">Pesanan Anda telah dikonfirmasi. Panel Pterodactyl sedang disiapkan dan akan segera aktif.</p>
-                <div className="flex gap-3 justify-center pt-2">
-                  <Button variant="outline" className="border-white/10" onClick={() => setLocation("/orders")}>
-                    Lihat Pesanan
+
+                {hasDelivery ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 mb-4">
+                      <ShieldCheck className="h-5 w-5 text-green-400" />
+                      <p className="font-semibold text-white">Data Panel Pterodactyl Kamu</p>
+                    </div>
+
+                    {(order as any).deliveryDomain && (
+                      <div className="flex items-center gap-3 bg-background/60 rounded-lg px-4 py-3 border border-white/10">
+                        <Globe className="h-4 w-4 text-blue-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground">Domain Panel</p>
+                          <p className="font-mono text-sm text-white truncate">{(order as any).deliveryDomain}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white"
+                          onClick={() => { navigator.clipboard.writeText((order as any).deliveryDomain); toast.success("Domain disalin!"); }}>
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+
+                    {(order as any).deliveryUsername && (
+                      <div className="flex items-center gap-3 bg-background/60 rounded-lg px-4 py-3 border border-white/10">
+                        <User className="h-4 w-4 text-purple-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground">Username</p>
+                          <p className="font-mono text-sm text-white">{(order as any).deliveryUsername}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white"
+                          onClick={() => { navigator.clipboard.writeText((order as any).deliveryUsername); toast.success("Username disalin!"); }}>
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+
+                    {(order as any).deliveryPassword && (
+                      <div className="flex items-center gap-3 bg-background/60 rounded-lg px-4 py-3 border border-white/10">
+                        <KeyRound className="h-4 w-4 text-yellow-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground">Password</p>
+                          <p className="font-mono text-sm text-white">{showPass ? (order as any).deliveryPassword : "••••••••••••"}</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white"
+                            onClick={() => setShowPass(v => !v)}>
+                            <span className="text-xs">{showPass ? "Sembunyikan" : "Tampilkan"}</span>
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white"
+                            onClick={() => { navigator.clipboard.writeText((order as any).deliveryPassword); toast.success("Password disalin!"); }}>
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {(order as any).deliveryTos && (
+                      <div className="bg-background/60 rounded-lg px-4 py-3 border border-white/10">
+                        <div className="flex items-center gap-2 mb-2">
+                          <FileText className="h-4 w-4 text-orange-400" />
+                          <p className="text-xs text-muted-foreground">Syarat & Ketentuan Penggunaan</p>
+                        </div>
+                        <p className="text-sm text-white/80 whitespace-pre-wrap leading-relaxed">{(order as any).deliveryTos}</p>
+                      </div>
+                    )}
+
+                    <div className="bg-yellow-500/8 border border-yellow-500/20 rounded-lg p-3">
+                      <p className="text-xs text-yellow-400/80">🔒 Simpan data ini dengan aman. Jangan bagikan ke siapapun.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-blue-500/8 border border-blue-500/15 rounded-lg p-4 text-center">
+                    <Clock className="h-8 w-8 text-blue-400 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">Admin sedang menyiapkan data panel kamu. Halaman ini akan otomatis diperbarui.</p>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <Button variant="outline" className="flex-1 border-white/10" onClick={() => setLocation("/orders")}>
+                    Riwayat Pesanan
                   </Button>
-                  <Button className="bg-primary hover:bg-primary/90 text-white" onClick={() => setLocation("/marketplace")}>
+                  <Button className="flex-1 bg-primary hover:bg-primary/90 text-white" onClick={() => setLocation("/marketplace")}>
                     Beli Lagi
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* REJECTED */}
+          {order.status === "rejected" && (
+            <Card className="glass-panel border-red-500/30">
+              <CardContent className="p-6 text-center space-y-3">
+                <AlertCircle className="h-12 w-12 text-red-400 mx-auto" />
+                <h3 className="text-lg font-bold text-white">Pembayaran Ditolak</h3>
+                <p className="text-muted-foreground text-sm">{order.notes ?? "Pembayaran kamu ditolak oleh admin. Hubungi admin untuk informasi lebih lanjut."}</p>
+                <Button onClick={openWhatsapp} className="w-full bg-green-600 hover:bg-green-500 text-white gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  Hubungi Admin via WhatsApp
+                </Button>
               </CardContent>
             </Card>
           )}

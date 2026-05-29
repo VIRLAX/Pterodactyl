@@ -17,6 +17,10 @@ export const ordersTable = pgTable("orders", {
   paymentProofUrl: text("payment_proof_url"),
   status: text("status").notNull().default("pending"),
   notes: text("notes"),
+  deliveryDomain: text("delivery_domain"),
+  deliveryUsername: text("delivery_username"),
+  deliveryPassword: text("delivery_password"),
+  deliveryTos: text("delivery_tos"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

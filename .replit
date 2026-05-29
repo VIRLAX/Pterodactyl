@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "bash"]
+modules = ["nodejs-20", "web", "bash", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -43,3 +43,4 @@ channel = "stable-25_05"
 [userenv.shared]
 SMTP_PASS = "mkxsupxlpvyfaapy"
 SMTP_USER = "pterostorecore@gmail.com"
+JWT_SECRET = "pterostore_jwt_ravqu6gn80l_2026_secure"

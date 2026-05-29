@@ -8,6 +8,8 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+app.set("trust proxy", 1);
+
 /* ─────────────────────────── Security Headers (Helmet) ─────────────────────────── */
 app.use(
   helmet({

@@ -53,7 +53,13 @@ type NewPassValues = z.infer<typeof newPassSchema>;
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const { login } = useAuth();
+  const { login, isAuthenticated, user, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      setLocation(user.role === "admin" ? "/admin" : "/marketplace");
+    }
+  }, [isAuthenticated, authLoading, user, setLocation]);
   const [step, setStep] = useState<LoginStep>("login");
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);

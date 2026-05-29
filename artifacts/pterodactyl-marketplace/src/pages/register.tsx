@@ -47,7 +47,14 @@ type OtpValues = z.infer<typeof otpSchema>;
 
 export default function Register() {
   const [, setLocation] = useLocation();
-  const { login } = useAuth();
+  const { login, isAuthenticated, user, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      setLocation(user.role === "admin" ? "/admin" : "/marketplace");
+    }
+  }, [isAuthenticated, authLoading, user]);
+
   const [step, setStep] = useState<RegisterStep>("form");
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);

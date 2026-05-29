@@ -1,7 +1,8 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AnimatePresence, motion } from "framer-motion";
 import NotFound from "@/pages/not-found";
 
 // User Pages
@@ -35,31 +36,48 @@ const queryClient = new QueryClient({
   },
 });
 
-function Router() {
+const pageVariants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, y: -4, transition: { duration: 0.15 } },
+};
+
+function AnimatedPage({ children }: { children: React.ReactNode }) {
   return (
-    <Switch>
-      <Route path="/" component={Landing} />
-      <Route path="/marketplace" component={Marketplace} />
-      <Route path="/product/:id" component={ProductDetail} />
-      <Route path="/checkout/:orderId" component={Checkout} />
-      <Route path="/orders" component={Orders} />
-      <Route path="/login" component={Login} />
-      <Route path="/register" component={Register} />
-      <Route path="/report-bug" component={ReportBug} />
-      
-      <Route path="/admin" component={AdminDashboard} />
-      <Route path="/admin/products" component={AdminProducts} />
-      <Route path="/admin/orders" component={AdminOrders} />
-      <Route path="/admin/users" component={AdminUsers} />
-      <Route path="/admin/discounts" component={AdminDiscounts} />
-      <Route path="/admin/invites" component={AdminInvites} />
-      <Route path="/admin/reviews" component={AdminReviews} />
-      <Route path="/admin/bugs" component={AdminBugs} />
-      <Route path="/admin/sessions" component={AdminSessions} />
-      <Route path="/admin/settings" component={AdminSettings} />
-      
-      <Route component={NotFound} />
-    </Switch>
+    <motion.div variants={pageVariants} initial="initial" animate="animate" exit="exit" style={{ minHeight: "100vh" }}>
+      {children}
+    </motion.div>
+  );
+}
+
+function Router() {
+  const [location] = useLocation();
+  return (
+    <AnimatePresence mode="wait">
+      <Switch key={location}>
+        <Route path="/">{() => <AnimatedPage><Landing /></AnimatedPage>}</Route>
+        <Route path="/marketplace">{() => <AnimatedPage><Marketplace /></AnimatedPage>}</Route>
+        <Route path="/product/:id">{(params) => <AnimatedPage><ProductDetail /></AnimatedPage>}</Route>
+        <Route path="/checkout/:orderId">{() => <AnimatedPage><Checkout /></AnimatedPage>}</Route>
+        <Route path="/orders">{() => <AnimatedPage><Orders /></AnimatedPage>}</Route>
+        <Route path="/login">{() => <AnimatedPage><Login /></AnimatedPage>}</Route>
+        <Route path="/register">{() => <AnimatedPage><Register /></AnimatedPage>}</Route>
+        <Route path="/report-bug">{() => <AnimatedPage><ReportBug /></AnimatedPage>}</Route>
+
+        <Route path="/admin">{() => <AnimatedPage><AdminDashboard /></AnimatedPage>}</Route>
+        <Route path="/admin/products">{() => <AnimatedPage><AdminProducts /></AnimatedPage>}</Route>
+        <Route path="/admin/orders">{() => <AnimatedPage><AdminOrders /></AnimatedPage>}</Route>
+        <Route path="/admin/users">{() => <AnimatedPage><AdminUsers /></AnimatedPage>}</Route>
+        <Route path="/admin/discounts">{() => <AnimatedPage><AdminDiscounts /></AnimatedPage>}</Route>
+        <Route path="/admin/invites">{() => <AnimatedPage><AdminInvites /></AnimatedPage>}</Route>
+        <Route path="/admin/reviews">{() => <AnimatedPage><AdminReviews /></AnimatedPage>}</Route>
+        <Route path="/admin/bugs">{() => <AnimatedPage><AdminBugs /></AnimatedPage>}</Route>
+        <Route path="/admin/sessions">{() => <AnimatedPage><AdminSessions /></AnimatedPage>}</Route>
+        <Route path="/admin/settings">{() => <AnimatedPage><AdminSettings /></AnimatedPage>}</Route>
+
+        <Route>{() => <AnimatedPage><NotFound /></AnimatedPage>}</Route>
+      </Switch>
+    </AnimatePresence>
   );
 }
 

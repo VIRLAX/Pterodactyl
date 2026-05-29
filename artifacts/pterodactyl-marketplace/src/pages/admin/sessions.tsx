@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import {
   Monitor, Copy, Check, Trash2, Plus, ChevronDown, ChevronRight,
@@ -69,6 +70,9 @@ export default function AdminSessions() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [extendForm, setExtendForm] = useState<{ deviceId: string; slots: string } | null>(null);
   const [extendLoading, setExtendLoading] = useState(false);
+  const [confirmDevice, setConfirmDevice] = useState<string | null>(null);
+  const [confirmUser, setConfirmUser] = useState<{ deviceId: string; userId: number; username: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   function copyText(text: string, key: string) {
     navigator.clipboard.writeText(text);
@@ -85,33 +89,41 @@ export default function AdminSessions() {
     });
   }
 
-  async function deleteDevice(deviceId: string) {
-    if (!confirm("Hapus semua sesi perangkat ini?")) return;
+  async function handleDeleteDevice() {
+    if (!confirmDevice) return;
+    setDeleteLoading(true);
     try {
-      const res = await fetch(`${getApiUrl()}/admin/sessions/${encodeURIComponent(deviceId)}`, {
+      const res = await fetch(`${getApiUrl()}/admin/sessions/${encodeURIComponent(confirmDevice)}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();
-      toast.success("Sesi perangkat dihapus");
+      toast.success("Semua sesi perangkat dihapus");
       qc.invalidateQueries({ queryKey: ["admin-sessions"] });
+      setConfirmDevice(null);
     } catch {
       toast.error("Gagal menghapus");
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
-  async function deleteUser(deviceId: string, userId: number) {
-    if (!confirm("Hapus sesi user ini?")) return;
+  async function handleDeleteUser() {
+    if (!confirmUser) return;
+    setDeleteLoading(true);
     try {
-      const res = await fetch(`${getApiUrl()}/admin/sessions/${encodeURIComponent(deviceId)}/user/${userId}`, {
+      const res = await fetch(`${getApiUrl()}/admin/sessions/${encodeURIComponent(confirmUser.deviceId)}/user/${confirmUser.userId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();
-      toast.success("Sesi dihapus");
+      toast.success(`Sesi ${confirmUser.username} dihapus`);
       qc.invalidateQueries({ queryKey: ["admin-sessions"] });
+      setConfirmUser(null);
     } catch {
       toast.error("Gagal menghapus");
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -293,7 +305,7 @@ export default function AdminSessions() {
                               size="sm"
                               variant="ghost"
                               className="h-6 w-6 p-0 text-red-400 hover:bg-red-500/10"
-                              onClick={e => { e.stopPropagation(); deleteDevice(session.deviceId); }}
+                              onClick={e => { e.stopPropagation(); setConfirmDevice(session.deviceId); }}
                             >
                               <Trash2 className="w-3 h-3" />
                             </Button>
@@ -312,21 +324,16 @@ export default function AdminSessions() {
                           const isAdminUser = u.role === "admin";
                           return (
                             <div key={u.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/2 border-b border-white/3 last:border-0 transition-colors">
-                              {/* Avatar */}
                               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isAdminUser ? "bg-yellow-500/20 text-yellow-400" : "bg-primary/20 text-primary"}`}>
                                 {u.username.charAt(0).toUpperCase()}
                               </div>
-
-                              {/* User info — compact */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-sm font-medium text-white">{u.username}</span>
                                   {isAdminUser && (
                                     <Badge className="bg-yellow-500/15 text-yellow-400 border-yellow-500/25 text-[10px] h-4 px-1.5">Admin</Badge>
                                   )}
-                                  <span className="text-xs text-muted-foreground ml-0.5">
-                                    {u.email}
-                                  </span>
+                                  <span className="text-xs text-muted-foreground ml-0.5">{u.email}</span>
                                   <button
                                     type="button"
                                     onClick={() => copyText(u.email, `email-${u.id}`)}
@@ -342,13 +349,12 @@ export default function AdminSessions() {
                                 </div>
                               </div>
 
-                              {/* Delete — hidden for admin */}
                               {!isAdminUser && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   className="h-6 w-6 p-0 text-red-400 hover:bg-red-500/10 flex-shrink-0"
-                                  onClick={() => deleteUser(session.deviceId, u.id)}
+                                  onClick={() => setConfirmUser({ deviceId: session.deviceId, userId: u.id, username: u.username })}
                                 >
                                   <Trash2 className="w-3 h-3" />
                                 </Button>
@@ -371,6 +377,28 @@ export default function AdminSessions() {
           </div>
         )}
       </div>
+
+      {/* Confirm delete entire device */}
+      <ConfirmDialog
+        open={!!confirmDevice}
+        title="Hapus semua sesi perangkat?"
+        description={`Semua akun yang terdaftar pada perangkat ${confirmDevice?.slice(0, 20)}... akan dihapus dari sistem. Mereka perlu login ulang.`}
+        confirmText="Ya, Hapus Perangkat"
+        loading={deleteLoading}
+        onConfirm={handleDeleteDevice}
+        onCancel={() => setConfirmDevice(null)}
+      />
+
+      {/* Confirm delete single user session */}
+      <ConfirmDialog
+        open={!!confirmUser}
+        title={`Hapus sesi "${confirmUser?.username}"?`}
+        description="Sesi akun ini di perangkat tersebut akan dihapus. User perlu login ulang dari perangkat ini."
+        confirmText="Ya, Hapus Sesi"
+        loading={deleteLoading}
+        onConfirm={handleDeleteUser}
+        onCancel={() => setConfirmUser(null)}
+      />
     </AdminLayout>
   );
 }

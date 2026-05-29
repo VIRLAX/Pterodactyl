@@ -9,6 +9,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   useListBugs, getListBugsQueryKey,
   useUpdateBugStatus
@@ -32,6 +33,8 @@ export default function AdminBugs() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedBug, setSelectedBug] = useState<any>(null);
   const [newStatus, setNewStatus] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<{ id: number; title: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: bugs, isLoading } = useListBugs({
     query: { queryKey: getListBugsQueryKey() }
@@ -39,18 +42,22 @@ export default function AdminBugs() {
 
   const updateBugStatus = useUpdateBugStatus();
 
-  async function deleteBug(id: number) {
-    if (!confirm("Hapus laporan ini? Tindakan tidak bisa dibatalkan.")) return;
+  async function handleDelete() {
+    if (!confirmDelete) return;
+    setDeleting(true);
     try {
-      const res = await fetch(`${getApiUrl()}/admin/bugs/${id}`, {
+      const res = await fetch(`${getApiUrl()}/admin/bugs/${confirmDelete.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();
-      toast.success("Laporan dihapus");
+      toast.success("Laporan bug berhasil dihapus");
       qc.invalidateQueries({ queryKey: getListBugsQueryKey() });
+      setConfirmDelete(null);
     } catch {
       toast.error("Gagal menghapus laporan");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -144,15 +151,20 @@ export default function AdminBugs() {
                           <CheckCircle className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-white/10" onClick={() => { setSelectedBug(bug); setNewStatus(bug.status); }}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-white/10"
+                        onClick={() => { setSelectedBug(bug); setNewStatus(bug.status); }}
+                      >
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-red-400 hover:bg-red-500/10"
+                        className="h-8 w-8 text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
                         title="Hapus laporan"
-                        onClick={() => deleteBug(bug.id)}
+                        onClick={() => setConfirmDelete({ id: bug.id, title: bug.title })}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -222,6 +234,17 @@ export default function AdminBugs() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={`Hapus laporan "${confirmDelete?.title}"?`}
+        description="Laporan bug ini akan dihapus secara permanen dari sistem. Tindakan ini tidak bisa dibatalkan."
+        confirmText="Ya, Hapus Laporan"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </AdminLayout>
   );
 }

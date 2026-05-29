@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   useListReviews, getListReviewsQueryKey,
   useReplyReview
@@ -32,6 +33,8 @@ export default function AdminReviews() {
   const qc = useQueryClient();
   const [replyDialog, setReplyDialog] = useState<any>(null);
   const [replyText, setReplyText] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<{ id: number; author: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: reviews, isLoading } = useListReviews({}, {
     query: { queryKey: getListReviewsQueryKey({}) }
@@ -39,18 +42,22 @@ export default function AdminReviews() {
 
   const replyReview = useReplyReview();
 
-  async function deleteReview(id: number) {
-    if (!confirm("Hapus ulasan ini? Tindakan tidak bisa dibatalkan.")) return;
+  async function handleDelete() {
+    if (!confirmDelete) return;
+    setDeleting(true);
     try {
-      const res = await fetch(`${getApiUrl()}/admin/reviews/${id}`, {
+      const res = await fetch(`${getApiUrl()}/admin/reviews/${confirmDelete.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();
-      toast.success("Ulasan dihapus");
+      toast.success("Ulasan berhasil dihapus");
       qc.invalidateQueries({ queryKey: getListReviewsQueryKey({}) });
+      setConfirmDelete(null);
     } catch {
       toast.error("Gagal menghapus ulasan");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -130,8 +137,8 @@ export default function AdminReviews() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-red-400 hover:bg-red-500/10"
-                        onClick={() => deleteReview(review.id)}
+                        className="h-7 w-7 text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+                        onClick={() => setConfirmDelete({ id: review.id, author: (review as any).user?.username ?? "Anonymous" })}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -179,6 +186,17 @@ export default function AdminReviews() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={`Hapus ulasan dari "${confirmDelete?.author}"?`}
+        description="Ulasan ini akan dihapus secara permanen dari sistem dan tidak dapat dikembalikan."
+        confirmText="Ya, Hapus Ulasan"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </AdminLayout>
   );
 }

@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useListOrders, getListOrdersQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShoppingCart, ExternalLink, Clock, CheckCircle, XCircle, Package, Trash2 } from "lucide-react";
@@ -25,6 +26,7 @@ export default function Orders() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const [clearing, setClearing] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const { data: orders, isLoading } = useListOrders({
     query: {
@@ -42,7 +44,6 @@ export default function Orders() {
   const hasCompleted = completedOrders.length > 0;
 
   async function handleClearCompleted() {
-    if (!confirm(`Hapus ${completedOrders.length} pesanan yang sudah selesai/ditolak/dibatalkan? Pesanan yang masih aktif (belum bayar/menunggu konfirmasi) tidak akan terpengaruh.`)) return;
     setClearing(true);
     try {
       const res = await fetch(`${getApiUrl()}/orders/clear-completed`, {
@@ -57,6 +58,7 @@ export default function Orders() {
       toast.error("Gagal menghapus pesanan");
     } finally {
       setClearing(false);
+      setShowConfirm(false);
     }
   }
 
@@ -75,7 +77,7 @@ export default function Orders() {
                 variant="ghost"
                 size="sm"
                 className="flex-shrink-0 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 border border-white/10 gap-2 text-xs mt-1"
-                onClick={handleClearCompleted}
+                onClick={() => setShowConfirm(true)}
                 disabled={clearing}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -172,6 +174,16 @@ export default function Orders() {
         </div>
       </main>
       <Footer />
+
+      <ConfirmDialog
+        open={showConfirm}
+        title={`Hapus ${completedOrders.length} pesanan selesai?`}
+        description="Semua pesanan yang sudah dikonfirmasi, ditolak, atau dibatalkan akan dihapus dari riwayat. Pesanan yang masih aktif (belum bayar / menunggu konfirmasi) tidak akan terpengaruh."
+        confirmText="Ya, Bersihkan"
+        loading={clearing}
+        onConfirm={handleClearCompleted}
+        onCancel={() => setShowConfirm(false)}
+      />
     </div>
   );
 }

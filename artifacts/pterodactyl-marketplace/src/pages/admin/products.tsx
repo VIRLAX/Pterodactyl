@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,15 +18,22 @@ import {
   useCreateProduct, useUpdateProduct, useDeleteProduct
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Search, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Package, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 const emptyForm = {
-  name: "", slug: "", description: "", detail: "", benefits: "",
-  price: 0, originalPrice: 0, category: "RESS", badge: "",
+  name: "", description: "", detail: "", benefits: "",
+  price: 0, originalPrice: 0, badge: "",
   status: "ready", isActive: true, sortOrder: 0,
   eligibleForInviteDiscount: false,
 };
+
+const badgeOptions = ["", "popular", "recommended", "best seller", "new", "hot"];
+const statusOptions = [
+  { value: "ready", label: "✅ Ready" },
+  { value: "sold_out", label: "❌ Habis" },
+  { value: "maintenance", label: "🔧 Maintenance" },
+];
 
 export default function AdminProducts() {
   const qc = useQueryClient();
@@ -53,23 +60,40 @@ export default function AdminProducts() {
   const openEdit = (p: any) => {
     setEditProduct(p);
     setForm({
-      name: p.name, slug: p.slug, description: p.description, detail: p.detail || "",
-      benefits: p.benefits, price: p.price, originalPrice: p.originalPrice || 0,
-      category: p.category, badge: p.badge || "", status: p.status,
-      isActive: p.isActive, sortOrder: p.sortOrder || 0,
+      name: p.name,
+      description: p.description,
+      detail: p.detail || "",
+      benefits: p.benefits || "",
+      price: p.price,
+      originalPrice: p.originalPrice || 0,
+      badge: p.badge || "",
+      status: p.status,
+      isActive: p.isActive,
+      sortOrder: p.sortOrder || 0,
       eligibleForInviteDiscount: p.eligibleForInviteDiscount || false,
     });
     setDialogOpen(true);
   };
 
   const handleSave = () => {
+    if (!form.name.trim()) { toast.error("Nama produk wajib diisi"); return; }
+    if (!form.price || Number(form.price) <= 0) { toast.error("Harga harus lebih dari 0"); return; }
+
     const data = {
-      ...form,
+      name: form.name.trim(),
+      description: form.description.trim(),
+      detail: form.detail.trim(),
+      benefits: form.benefits.trim(),
       price: Number(form.price),
-      originalPrice: Number(form.originalPrice) || undefined,
-      sortOrder: Number(form.sortOrder),
-      slug: form.slug || form.name.toLowerCase().replace(/\s+/g, "-"),
+      originalPrice: Number(form.originalPrice) > 0 ? Number(form.originalPrice) : undefined,
+      badge: form.badge || null,
+      status: form.status,
+      isActive: form.isActive,
+      sortOrder: Number(form.sortOrder) || 0,
+      eligibleForInviteDiscount: form.eligibleForInviteDiscount,
+      category: "panel",
     };
+
     if (editProduct) {
       updateProduct.mutate({ id: editProduct.id, data }, {
         onSuccess: () => {
@@ -77,7 +101,10 @@ export default function AdminProducts() {
           qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) });
           setDialogOpen(false);
         },
-        onError: () => toast.error("Gagal mengupdate produk"),
+        onError: (err: any) => {
+          const msg = err?.response?.data?.error ?? err?.message ?? "Gagal mengupdate produk";
+          toast.error(msg);
+        },
       });
     } else {
       createProduct.mutate({ data }, {
@@ -86,7 +113,10 @@ export default function AdminProducts() {
           qc.invalidateQueries({ queryKey: getListProductsQueryKey({}) });
           setDialogOpen(false);
         },
-        onError: () => toast.error("Gagal menambahkan produk"),
+        onError: (err: any) => {
+          const msg = err?.response?.data?.error ?? err?.message ?? "Gagal menambahkan produk";
+          toast.error(msg);
+        },
       });
     }
   };
@@ -104,17 +134,13 @@ export default function AdminProducts() {
 
   const f = (field: string, val: any) => setForm(prev => ({ ...prev, [field]: val }));
 
-  const categories = ["1GB", "2GB", "3GB", "4GB", "5GB", "6GB", "7GB", "8GB", "9GB", "TK", "OWN", "PT", "ADP", "Unlimited", "RESS"];
-  const badgeOptions = ["", "popular", "recommended", "best seller", "new", "hot"];
-  const statusOptions = ["ready", "sold_out", "maintenance"];
-
   return (
     <AdminLayout>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-white">Kelola Produk</h1>
-            <p className="text-muted-foreground text-sm">{products?.length ?? 0} produk tersedia</p>
+            <p className="text-muted-foreground text-sm">{products?.length ?? 0} produk terdaftar</p>
           </div>
           <Button onClick={openCreate} className="bg-primary hover:bg-primary/90 text-white gap-2 shadow-[0_0_10px_rgba(255,10,60,0.3)]">
             <Plus className="h-4 w-4" /> Tambah Produk
@@ -135,18 +161,19 @@ export default function AdminProducts() {
             ) : !products?.length ? (
               <div className="flex flex-col items-center py-16 text-muted-foreground">
                 <Package className="h-12 w-12 mb-3 opacity-30" />
-                <p>Belum ada produk</p>
+                <p className="font-medium">Belum ada produk</p>
+                <p className="text-xs mt-1">Klik "Tambah Produk" untuk mulai</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-white/10">
-                      <th className="text-left px-4 py-3 text-muted-foreground font-medium">Nama</th>
-                      <th className="text-left px-4 py-3 text-muted-foreground font-medium">Kategori</th>
+                      <th className="text-left px-4 py-3 text-muted-foreground font-medium">Nama Produk</th>
                       <th className="text-left px-4 py-3 text-muted-foreground font-medium">Harga</th>
                       <th className="text-left px-4 py-3 text-muted-foreground font-medium">Status</th>
                       <th className="text-left px-4 py-3 text-muted-foreground font-medium">Badge</th>
+                      <th className="text-left px-4 py-3 text-muted-foreground font-medium">Aktif</th>
                       <th className="text-right px-4 py-3 text-muted-foreground font-medium">Aksi</th>
                     </tr>
                   </thead>
@@ -156,15 +183,14 @@ export default function AdminProducts() {
                         <td className="px-4 py-3">
                           <div>
                             <p className="font-medium text-white">{p.name}</p>
-                            <p className="text-xs text-muted-foreground">{p.isActive ? "Aktif" : "Nonaktif"}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-1">{p.description || "—"}</p>
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <Badge className="bg-secondary/20 text-secondary border-secondary/30">{p.category}</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="font-semibold text-white">Rp {p.price.toLocaleString()}</p>
-                          {p.originalPrice && <p className="text-xs text-muted-foreground line-through">Rp {p.originalPrice.toLocaleString()}</p>}
+                          <p className="font-semibold text-white">Rp {p.price.toLocaleString("id-ID")}</p>
+                          {p.originalPrice && (
+                            <p className="text-xs text-muted-foreground line-through">Rp {p.originalPrice.toLocaleString("id-ID")}</p>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <Badge className={
@@ -178,7 +204,12 @@ export default function AdminProducts() {
                         <td className="px-4 py-3">
                           {p.badge ? (
                             <Badge className="bg-primary/20 text-primary border-primary/30 capitalize">{p.badge}</Badge>
-                          ) : <span className="text-muted-foreground text-xs">-</span>}
+                          ) : <span className="text-muted-foreground text-xs">—</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-medium ${p.isActive ? "text-green-400" : "text-red-400"}`}>
+                            {p.isActive ? "Aktif" : "Nonaktif"}
+                          </span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-2">
@@ -204,77 +235,125 @@ export default function AdminProducts() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="bg-card border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editProduct ? "Edit Produk" : "Tambah Produk"}</DialogTitle>
+            <DialogTitle>{editProduct ? "Edit Produk" : "Tambah Produk Baru"}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-            <div className="space-y-2">
-              <Label>Nama Produk *</Label>
-              <Input className="bg-background/50 border-white/10" value={form.name} onChange={e => f("name", e.target.value)} placeholder="misal: Panel 4GB" />
+            <div className="md:col-span-2 space-y-2">
+              <Label>Nama Produk <span className="text-primary">*</span></Label>
+              <Input
+                className="bg-background/50 border-white/10 focus:border-primary/50"
+                value={form.name}
+                onChange={e => f("name", e.target.value)}
+                placeholder="misal: Panel Pterodactyl 4GB"
+              />
             </div>
+
             <div className="space-y-2">
-              <Label>Harga (Rp) *</Label>
-              <Input type="number" className="bg-background/50 border-white/10" value={form.price} onChange={e => f("price", e.target.value)} />
+              <Label>Harga (Rp) <span className="text-primary">*</span></Label>
+              <Input
+                type="number" min="0"
+                className="bg-background/50 border-white/10 focus:border-primary/50"
+                value={form.price}
+                onChange={e => f("price", e.target.value)}
+                placeholder="50000"
+              />
             </div>
+
             <div className="space-y-2">
-              <Label>Harga Asli (coret)</Label>
-              <Input type="number" className="bg-background/50 border-white/10" value={form.originalPrice} onChange={e => f("originalPrice", e.target.value)} />
+              <Label>Harga Asli / Coret (Rp)</Label>
+              <Input
+                type="number" min="0"
+                className="bg-background/50 border-white/10"
+                value={form.originalPrice || ""}
+                onChange={e => f("originalPrice", e.target.value)}
+                placeholder="75000 (opsional)"
+              />
             </div>
+
             <div className="space-y-2">
-              <Label>Kategori *</Label>
-              <Select value={form.category} onValueChange={v => f("category", v)}>
-                <SelectTrigger className="bg-background/50 border-white/10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-white/10">
-                  {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Status *</Label>
+              <Label>Status</Label>
               <Select value={form.status} onValueChange={v => f("status", v)}>
                 <SelectTrigger className="bg-background/50 border-white/10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-white/10">
-                  {statusOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  {statusOptions.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
-              <Label>Badge</Label>
+              <Label>Badge / Label</Label>
               <Select value={form.badge || "_none"} onValueChange={v => f("badge", v === "_none" ? "" : v)}>
                 <SelectTrigger className="bg-background/50 border-white/10">
                   <SelectValue placeholder="Pilih badge..." />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-white/10">
-                  {badgeOptions.map(b => <SelectItem key={b || "_none"} value={b || "_none"}>{b || "Tidak ada"}</SelectItem>)}
+                  <SelectItem value="_none">Tidak ada</SelectItem>
+                  {badgeOptions.filter(b => b).map(b => (
+                    <SelectItem key={b} value={b} className="capitalize">{b}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
-              <Label>Urutan (Sort Order)</Label>
-              <Input type="number" className="bg-background/50 border-white/10" value={form.sortOrder} onChange={e => f("sortOrder", e.target.value)} />
+              <Label>Urutan Tampil</Label>
+              <Input
+                type="number" min="0"
+                className="bg-background/50 border-white/10"
+                value={form.sortOrder}
+                onChange={e => f("sortOrder", e.target.value)}
+                placeholder="0"
+              />
             </div>
+
             <div className="md:col-span-2 space-y-2">
-              <Label>Deskripsi Singkat *</Label>
-              <Textarea className="bg-background/50 border-white/10 resize-none" rows={2} value={form.description} onChange={e => f("description", e.target.value)} placeholder="Deskripsi singkat produk..." />
+              <Label>Deskripsi Singkat</Label>
+              <Textarea
+                className="bg-background/50 border-white/10 resize-none"
+                rows={2}
+                value={form.description}
+                onChange={e => f("description", e.target.value)}
+                placeholder="Deskripsi singkat yang ditampilkan di card produk..."
+              />
             </div>
+
             <div className="md:col-span-2 space-y-2">
-              <Label>Detail Lengkap</Label>
-              <Textarea className="bg-background/50 border-white/10 resize-none" rows={4} value={form.detail} onChange={e => f("detail", e.target.value)} placeholder="Detail teknis, spesifikasi, dll..." />
+              <Label>Detail / Spesifikasi Lengkap</Label>
+              <Textarea
+                className="bg-background/50 border-white/10 resize-none"
+                rows={4}
+                value={form.detail}
+                onChange={e => f("detail", e.target.value)}
+                placeholder="Spesifikasi teknis, fitur detail, informasi tambahan..."
+              />
             </div>
+
             <div className="md:col-span-2 space-y-2">
-              <Label>Benefit (pisahkan dengan koma)</Label>
-              <Input className="bg-background/50 border-white/10" value={form.benefits} onChange={e => f("benefits", e.target.value)} placeholder="DDoS Protection, 99.9% Uptime, 24/7 Support" />
+              <Label>Benefit <span className="text-xs text-muted-foreground">(pisahkan dengan koma)</span></Label>
+              <Input
+                className="bg-background/50 border-white/10"
+                value={form.benefits}
+                onChange={e => f("benefits", e.target.value)}
+                placeholder="DDoS Protection, 99.9% Uptime, 24/7 Support, Backup Harian"
+              />
             </div>
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-3 p-3 bg-background/30 rounded-lg border border-white/5">
               <Switch checked={form.isActive} onCheckedChange={v => f("isActive", v)} />
-              <Label>Produk Aktif</Label>
+              <div>
+                <Label className="cursor-pointer">Produk Aktif</Label>
+                <p className="text-xs text-muted-foreground">Tampil di halaman marketplace</p>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-3 p-3 bg-background/30 rounded-lg border border-white/5">
               <Switch checked={form.eligibleForInviteDiscount} onCheckedChange={v => f("eligibleForInviteDiscount", v)} />
-              <Label>Support Token Invite</Label>
+              <div>
+                <Label className="cursor-pointer">Support Token Invite</Label>
+                <p className="text-xs text-muted-foreground">Bisa pakai diskon invite</p>
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -282,21 +361,27 @@ export default function AdminProducts() {
             <Button
               onClick={handleSave}
               disabled={createProduct.isPending || updateProduct.isPending}
-              className="bg-primary hover:bg-primary/90 text-white"
+              className="bg-primary hover:bg-primary/90 text-white gap-2"
             >
-              {createProduct.isPending || updateProduct.isPending ? "Menyimpan..." : "Simpan"}
+              {createProduct.isPending || updateProduct.isPending ? (
+                <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Menyimpan...</>
+              ) : (
+                editProduct ? "Simpan Perubahan" : "Tambah Produk"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirm dialog */}
+      {/* Delete confirm */}
       <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
         <DialogContent className="bg-card border-white/10 max-w-sm">
           <DialogHeader>
-            <DialogTitle>Hapus Produk?</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 text-red-400">
+              <AlertTriangle className="h-5 w-5" /> Hapus Produk?
+            </DialogTitle>
           </DialogHeader>
-          <p className="text-muted-foreground text-sm">Tindakan ini tidak bisa dibatalkan. Produk akan dihapus permanen.</p>
+          <p className="text-muted-foreground text-sm">Tindakan ini tidak bisa dibatalkan. Produk akan dihapus permanen dari sistem.</p>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDeleteId(null)}>Batal</Button>
             <Button
@@ -304,7 +389,7 @@ export default function AdminProducts() {
               onClick={() => deleteId && handleDelete(deleteId)}
               disabled={deleteProduct.isPending}
             >
-              {deleteProduct.isPending ? "Menghapus..." : "Hapus"}
+              {deleteProduct.isPending ? "Menghapus..." : "Ya, Hapus"}
             </Button>
           </DialogFooter>
         </DialogContent>

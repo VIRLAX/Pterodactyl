@@ -4,7 +4,6 @@ import { useListProducts, getListProductsQueryKey, useSubmitInvite } from "@work
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,30 +11,69 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
-import { Server, Search, Check, Upload, X, Filter, Gift, MessageCircle, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Server, Search, Check, Upload, X, Gift, MessageCircle,
+  Cpu, HardDrive, Shield, Zap, ChevronRight, Activity,
+  Database, Globe, Lock, Star
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
-const ALL_CATEGORIES = ["Semua", "1GB", "2GB", "3GB", "4GB", "5GB", "6GB", "7GB", "8GB", "9GB", "TK", "OWN", "PT", "ADP", "Unlimited", "RESS"];
-const INITIAL_VISIBLE = 7;
+const badgeStyle: Record<string, string> = {
+  popular: "bg-orange-500 text-white shadow-[0_0_12px_rgba(249,115,22,0.6)]",
+  recommended: "bg-blue-500 text-white shadow-[0_0_12px_rgba(59,130,246,0.6)]",
+  "best seller": "bg-yellow-500 text-black shadow-[0_0_12px_rgba(234,179,8,0.6)]",
+  new: "bg-green-500 text-white shadow-[0_0_12px_rgba(34,197,94,0.6)]",
+  hot: "bg-primary text-white shadow-[0_0_12px_rgba(255,10,60,0.6)]",
+};
+
+const BENEFIT_ICONS: Record<string, any> = {
+  default: Check,
+  ddos: Shield,
+  uptime: Activity,
+  backup: Database,
+  domain: Globe,
+  ssl: Lock,
+  speed: Zap,
+  cpu: Cpu,
+  storage: HardDrive,
+};
+
+function getBenefitIcon(benefit: string) {
+  const b = benefit.toLowerCase();
+  if (b.includes("ddos") || b.includes("proteksi")) return Shield;
+  if (b.includes("uptime") || b.includes("aktif")) return Activity;
+  if (b.includes("backup")) return Database;
+  if (b.includes("domain") || b.includes("subdomain")) return Globe;
+  if (b.includes("ssl") || b.includes("secure")) return Lock;
+  if (b.includes("speed") || b.includes("cepat")) return Zap;
+  if (b.includes("cpu") || b.includes("proses")) return Cpu;
+  if (b.includes("disk") || b.includes("storage") || b.includes("gb")) return HardDrive;
+  return Check;
+}
+
+const containerVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.07 } }
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 30, scale: 0.96 },
+  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } }
+};
 
 export default function Marketplace() {
   const [, setLocation] = useLocation();
   const { isAuthenticated } = useAuth();
   const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("Semua");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [screenshotName, setScreenshotName] = useState("");
-  const [showAllCats, setShowAllCats] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const visibleCategories = showAllCats ? ALL_CATEGORIES : ALL_CATEGORIES.slice(0, INITIAL_VISIBLE);
-  const hiddenCount = ALL_CATEGORIES.length - INITIAL_VISIBLE;
 
   const params = {
     available: true,
     ...(search ? { search } : {}),
-    ...(selectedCategory !== "Semua" ? { category: selectedCategory } : {}),
   };
 
   const { data: products, isLoading } = useListProducts(params, {
@@ -58,7 +96,7 @@ export default function Marketplace() {
     if (!screenshot) { toast.error("Upload screenshot terlebih dahulu!"); return; }
     submitInvite.mutate({ data: { screenshotBase64: screenshot } }, {
       onSuccess: () => {
-        toast.success("Bukti invite berhasil dikirim! Admin akan memverifikasi dan memberikan token diskon.");
+        toast.success("Bukti invite berhasil dikirim! Admin akan memverifikasi.");
         setInviteOpen(false);
         setScreenshot(null);
         setScreenshotName("");
@@ -70,251 +108,306 @@ export default function Marketplace() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
-      <main className="flex-1 container mx-auto px-4 py-10">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Marketplace</h1>
-          <p className="text-muted-foreground">Temukan panel Pterodactyl yang tepat untuk kebutuhanmu.</p>
-        </div>
+      <main className="flex-1">
 
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar */}
-          <aside className="w-full lg:w-64 flex-shrink-0 space-y-5">
-            {/* Search */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                <Search className="h-3.5 w-3.5" /> Cari Panel
-              </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+        {/* Hero Section */}
+        <div className="relative overflow-hidden border-b border-white/5">
+          <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-primary/10 blur-3xl rounded-full pointer-events-none" />
+
+          <div className="container mx-auto px-4 py-14 relative">
+            <motion.div
+              initial={{ opacity: 0, y: -16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="text-center max-w-2xl mx-auto"
+            >
+              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 mb-5">
+                <Server className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-semibold text-primary uppercase tracking-wider">Panel Pterodactyl</span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-black text-white mb-3 leading-tight">
+                Server Panel<br />
+                <span className="text-primary">Terpercaya</span>
+              </h1>
+              <p className="text-muted-foreground text-base mb-8">
+                Kelola game server mu dengan mudah. Panel Pterodactyl siap pakai, stabil, dan dilindungi DDoS.
+              </p>
+
+              {/* Search Bar */}
+              <div className="relative max-w-md mx-auto">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Nama panel..."
-                  className="pl-9 bg-card/50 border-white/10 focus:border-primary/50"
+                  placeholder="Cari panel..."
+                  className="pl-11 pr-4 h-12 bg-white/5 border-white/10 focus:border-primary/50 rounded-xl text-base"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />
               </div>
-            </div>
+            </motion.div>
+          </div>
+        </div>
 
-            {/* Category Filter */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                <Filter className="h-3.5 w-3.5" /> Kategori
-              </label>
-              <div className="flex flex-wrap lg:flex-col gap-1.5">
-                {visibleCategories.map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`text-left text-sm px-3 py-1.5 rounded-lg transition-colors ${
-                      selectedCategory === cat
-                        ? "bg-primary/20 text-primary font-medium"
-                        : "text-muted-foreground hover:bg-white/5 hover:text-white"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => setShowAllCats(p => !p)}
-                className="flex items-center gap-1.5 text-xs text-primary/80 hover:text-primary transition-colors px-1 py-1"
-              >
-                {showAllCats ? (
-                  <><ChevronUp className="h-3.5 w-3.5" /> Sembunyikan</>
-                ) : (
-                  <><ChevronDown className="h-3.5 w-3.5" /> +{hiddenCount} kategori lainnya</>
-                )}
-              </button>
-            </div>
+        {/* Products Section */}
+        <div className="container mx-auto px-4 py-10">
 
-            {/* Invite Promo Box */}
-            <div className="p-5 rounded-2xl border border-secondary/30 bg-gradient-to-b from-secondary/10 to-transparent">
-              <div className="flex items-center gap-2 mb-3">
-                <Gift className="h-5 w-5 text-secondary" />
-                <h3 className="font-bold text-secondary">Invite & Hemat!</h3>
-              </div>
-              <p className="text-xs text-muted-foreground mb-4">
-                Ajak teman join grup WhatsApp kami, upload screenshot, dan dapatkan token diskon eksklusif!
-              </p>
-              <div className="space-y-2 mb-4">
-                {["Join grup WA kami", "Upload screenshot bukti", "Terima token diskon"].map((s, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    <div className="w-4 h-4 rounded-full bg-secondary/20 flex items-center justify-center text-secondary font-bold text-[10px]">
-                      {i + 1}
-                    </div>
-                    <span className="text-muted-foreground">{s}</span>
-                  </div>
-                ))}
-              </div>
-              <Button
-                className="w-full bg-secondary hover:bg-secondary/90 text-white text-sm gap-2 shadow-[0_0_15px_rgba(150,10,255,0.3)]"
-                onClick={() => setInviteOpen(true)}
-              >
-                <MessageCircle className="h-4 w-4" />
-                Submit Bukti
-              </Button>
+          {/* Stats Row */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="flex flex-wrap items-center justify-between gap-4 mb-8"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-sm text-muted-foreground">
+                {isLoading ? "Memuat..." : `${products?.length ?? 0} panel tersedia`}
+              </span>
             </div>
-          </aside>
+            <Button
+              onClick={() => setInviteOpen(true)}
+              variant="outline"
+              className="gap-2 border-secondary/30 text-secondary hover:bg-secondary/10 hover:border-secondary/50 text-sm"
+            >
+              <Gift className="h-4 w-4" />
+              Dapatkan Diskon Invite
+            </Button>
+          </motion.div>
 
-          {/* Products Grid */}
-          <div className="flex-1">
-            {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                {[...Array(6)].map((_, i) => <div key={i} className="h-72 rounded-2xl bg-white/5 animate-pulse" />)}
+          {/* Product Grid */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-80 rounded-2xl bg-white/5 animate-pulse" />
+              ))}
+            </div>
+          ) : !products?.length ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center py-28 text-muted-foreground"
+            >
+              <div className="w-20 h-20 rounded-2xl bg-white/5 flex items-center justify-center mb-4 border border-white/10">
+                <Server className="h-10 w-10 opacity-30" />
               </div>
-            ) : !products?.length ? (
-              <div className="flex flex-col items-center py-24 text-muted-foreground">
-                <Server className="h-14 w-14 mb-4 opacity-30" />
-                <h3 className="text-lg font-medium text-white mb-2">Tidak ada produk ditemukan</h3>
-                <p className="text-sm">Coba ubah filter pencarian</p>
-                <Button variant="ghost" className="mt-4" onClick={() => { setSearch(""); setSelectedCategory("Semua"); }}>
-                  Reset Filter
+              <h3 className="text-lg font-medium text-white mb-2">Panel tidak ditemukan</h3>
+              <p className="text-sm mb-4">Coba kata kunci lain</p>
+              {search && (
+                <Button variant="ghost" onClick={() => setSearch("")} className="text-primary">
+                  Hapus pencarian
                 </Button>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between mb-5">
-                  <p className="text-sm text-muted-foreground">{products.length} panel ditemukan</p>
-                  {(search || selectedCategory !== "Semua") && (
-                    <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => { setSearch(""); setSelectedCategory("Semua"); }}>
-                      Reset filter
-                    </Button>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {products.map((product) => (
-                    <Card key={product.id} className="glass-panel border-white/10 hover:border-primary/40 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,10,60,0.1)] flex flex-col relative overflow-hidden group">
-                      {product.badge && (
-                        <div className="absolute top-3.5 right-3.5 z-10">
-                          <Badge className="bg-primary text-white font-bold text-xs shadow-[0_0_10px_rgba(255,10,60,0.5)] capitalize">
-                            {product.badge}
-                          </Badge>
-                        </div>
-                      )}
-                      {!product.isActive || product.status !== "ready" ? (
-                        <div className="absolute inset-0 bg-background/50 backdrop-blur-[2px] z-10 flex items-center justify-center">
-                          <Badge className="bg-red-500/80 text-white text-sm">
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+            >
+              {products.map((product) => {
+                const benefits = product.benefits ? product.benefits.split(",").map(b => b.trim()).filter(Boolean) : [];
+                const isUnavailable = !product.isActive || product.status !== "ready";
+                const discountPct = product.originalPrice && product.originalPrice > product.price
+                  ? Math.round((1 - product.price / product.originalPrice) * 100)
+                  : 0;
+
+                return (
+                  <motion.div key={product.id} variants={cardVariants}>
+                    <div className={`relative group h-full rounded-2xl border overflow-hidden transition-all duration-300 ${
+                      isUnavailable
+                        ? "border-white/5 opacity-60"
+                        : "border-white/10 hover:border-primary/40 hover:shadow-[0_0_40px_rgba(255,10,60,0.12)] cursor-pointer"
+                    } bg-gradient-to-b from-white/[0.04] to-transparent`}
+                      onClick={() => !isUnavailable && setLocation(`/product/${product.id}`)}
+                    >
+                      {/* Top glow line */}
+                      <div className={`absolute top-0 left-0 right-0 h-px transition-opacity duration-300 ${
+                        isUnavailable ? "bg-white/5" : "bg-gradient-to-r from-transparent via-primary/60 to-transparent opacity-0 group-hover:opacity-100"
+                      }`} />
+
+                      {/* Unavailable overlay */}
+                      {isUnavailable && (
+                        <div className="absolute inset-0 bg-background/40 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                          <Badge className="bg-red-500/80 text-white text-sm px-4 py-1.5">
                             {product.status === "sold_out" ? "Habis" : "Maintenance"}
                           </Badge>
                         </div>
-                      ) : null}
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-lg font-bold group-hover:text-primary transition-colors">{product.name}</CardTitle>
-                        <Badge className="w-fit bg-secondary/15 text-secondary border-secondary/25 text-xs">{product.category}</Badge>
-                      </CardHeader>
-                      <CardContent className="flex-1 space-y-3">
-                        <div>
-                          {product.originalPrice ? (
-                            <>
-                              <span className="text-sm text-muted-foreground line-through mr-2">Rp {product.originalPrice.toLocaleString()}</span>
-                              <span className="text-2xl font-bold text-white">Rp {product.price.toLocaleString()}</span>
-                              <span className="text-muted-foreground text-sm">/bln</span>
-                              <span className="ml-2 text-xs bg-green-500/15 text-green-400 border border-green-500/20 rounded-full px-2 py-0.5">
-                                Hemat {Math.round((1 - product.price / product.originalPrice) * 100)}%
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="text-2xl font-bold text-white">Rp {product.price.toLocaleString()}</span>
-                              <span className="text-muted-foreground text-sm">/bln</span>
-                            </>
-                          )}
+                      )}
+
+                      {/* Badge */}
+                      {product.badge && (
+                        <div className="absolute top-4 right-4 z-20">
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${badgeStyle[product.badge] ?? "bg-primary text-white"}`}>
+                            {product.badge === "best seller" ? <><Star className="inline h-3 w-3 mr-0.5" />Best Seller</> : product.badge}
+                          </span>
                         </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{product.description}</p>
-                        <div className="space-y-1.5">
-                          {product.benefits.split(",").slice(0, 3).map((b, i) => (
-                            <div key={i} className="flex items-center gap-2 text-xs">
-                              <Check className="h-3 w-3 text-green-400 flex-shrink-0" />
-                              <span className="text-muted-foreground">{b.trim()}</span>
-                            </div>
-                          ))}
+                      )}
+
+                      <div className="p-6 flex flex-col h-full">
+                        {/* Server Icon + Name */}
+                        <div className="flex items-start gap-4 mb-5">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+                            isUnavailable ? "bg-white/5" : "bg-primary/10 group-hover:bg-primary/20 border border-primary/20"
+                          }`}>
+                            <Server className={`h-6 w-6 ${isUnavailable ? "text-white/20" : "text-primary"}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-white text-lg leading-tight group-hover:text-primary transition-colors duration-200 line-clamp-1">
+                              {product.name}
+                            </h3>
+                            {product.description && (
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
+                                {product.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </CardContent>
-                      <CardFooter>
-                        <Button
-                          className="w-full text-sm bg-white/5 hover:bg-primary hover:text-white transition-all border border-white/10 hover:border-primary"
-                          onClick={() => setLocation(`/product/${product.id}`)}
-                          disabled={product.status !== "ready"}
+
+                        {/* Price */}
+                        <div className="mb-5">
+                          <div className="flex items-end gap-2">
+                            {product.originalPrice && product.originalPrice > product.price ? (
+                              <>
+                                <span className="text-sm text-muted-foreground line-through">
+                                  Rp {product.originalPrice.toLocaleString("id-ID")}
+                                </span>
+                                <span className="text-xs bg-green-500/15 text-green-400 border border-green-500/20 rounded-full px-2 py-0.5 font-medium">
+                                  Hemat {discountPct}%
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                          <div className="flex items-baseline gap-1 mt-0.5">
+                            <span className="text-3xl font-black text-white">
+                              Rp {product.price.toLocaleString("id-ID")}
+                            </span>
+                            <span className="text-muted-foreground text-sm">/bln</span>
+                          </div>
+                        </div>
+
+                        {/* Benefits */}
+                        {benefits.length > 0 && (
+                          <div className="space-y-2 mb-6 flex-1">
+                            {benefits.slice(0, 4).map((b, i) => {
+                              const Icon = getBenefitIcon(b);
+                              return (
+                                <div key={i} className="flex items-center gap-2.5">
+                                  <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 bg-green-500/15">
+                                    <Icon className="h-2.5 w-2.5 text-green-400" />
+                                  </div>
+                                  <span className="text-xs text-muted-foreground leading-snug">{b}</span>
+                                </div>
+                              );
+                            })}
+                            {benefits.length > 4 && (
+                              <p className="text-xs text-muted-foreground/60 pl-6">+{benefits.length - 4} fitur lainnya</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Separator */}
+                        <div className="h-px bg-white/5 mb-4" />
+
+                        {/* CTA Button */}
+                        <button
+                          disabled={isUnavailable}
+                          className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                            isUnavailable
+                              ? "bg-white/5 text-white/30 cursor-not-allowed"
+                              : "bg-white/5 hover:bg-primary text-white/70 hover:text-white border border-white/10 hover:border-primary group-hover:bg-primary group-hover:text-white group-hover:shadow-[0_0_20px_rgba(255,10,60,0.3)]"
+                          }`}
                         >
-                          {product.status === "ready" ? "Lihat Detail" : "Tidak Tersedia"}
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+                          {isUnavailable ? "Tidak Tersedia" : (
+                            <>Lihat Detail <ChevronRight className="h-4 w-4" /></>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
         </div>
       </main>
       <Footer />
 
       {/* Invite Dialog */}
-      <Dialog open={inviteOpen} onOpenChange={v => { setInviteOpen(v); if (!v) { setScreenshot(null); setScreenshotName(""); } }}>
-        <DialogContent className="bg-card border-white/10 max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Gift className="h-5 w-5 text-secondary" />
-              Submit Bukti Invite
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="bg-secondary/10 border border-secondary/20 rounded-lg p-4 text-sm">
-              <p className="text-secondary font-semibold mb-2">Cara Mendapatkan Token Diskon:</p>
-              <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
-                <li>Ajak teman kamu masuk ke grup WhatsApp PteroStore</li>
-                <li>Ambil screenshot saat teman kamu berhasil bergabung</li>
-                <li>Upload screenshot di sini</li>
-                <li>Admin akan verifikasi dan kirimkan token diskon ke akunmu</li>
-              </ol>
-            </div>
-
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-            <div className="space-y-2">
-              <Label>Screenshot Bukti Invite <span className="text-primary">*</span></Label>
-              {screenshot ? (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <img src={screenshot} alt="Preview" className="w-full max-h-48 object-contain rounded-xl border border-white/10" />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-2 right-2 h-7 w-7 bg-background/80"
-                      onClick={() => { setScreenshot(null); setScreenshotName(""); }}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{screenshotName}</p>
+      <AnimatePresence>
+        {inviteOpen && (
+          <Dialog open={inviteOpen} onOpenChange={v => { setInviteOpen(v); if (!v) { setScreenshot(null); setScreenshotName(""); } }}>
+            <DialogContent className="bg-card border-white/10 max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Gift className="h-5 w-5 text-secondary" />
+                  Dapatkan Token Diskon
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="bg-secondary/10 border border-secondary/20 rounded-xl p-4">
+                  <p className="text-secondary font-semibold text-sm mb-3">Cara Mendapatkan Diskon:</p>
+                  <ol className="space-y-2">
+                    {[
+                      "Ajak teman kamu join grup WhatsApp PteroStore",
+                      "Screenshot saat teman berhasil bergabung",
+                      "Upload screenshot di sini",
+                      "Admin verifikasi & kirim token diskon ke akunmu"
+                    ].map((s, i) => (
+                      <li key={i} className="flex items-start gap-2.5 text-xs text-muted-foreground">
+                        <span className="w-4 h-4 rounded-full bg-secondary/30 flex items-center justify-center text-secondary font-bold text-[10px] flex-shrink-0 mt-0.5">{i + 1}</span>
+                        {s}
+                      </li>
+                    ))}
+                  </ol>
                 </div>
-              ) : (
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  className="w-full border-2 border-dashed border-white/20 hover:border-secondary/50 rounded-xl p-8 flex flex-col items-center gap-3 transition-colors cursor-pointer"
+
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                <div className="space-y-2">
+                  <Label>Screenshot Bukti Invite <span className="text-primary">*</span></Label>
+                  {screenshot ? (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <img src={screenshot} alt="Preview" className="w-full max-h-48 object-contain rounded-xl border border-white/10" />
+                        <Button
+                          type="button" variant="ghost" size="icon"
+                          className="absolute top-2 right-2 h-7 w-7 bg-background/80"
+                          onClick={() => { setScreenshot(null); setScreenshotName(""); }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{screenshotName}</p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      className="w-full border-2 border-dashed border-white/20 hover:border-secondary/50 rounded-xl p-8 flex flex-col items-center gap-3 transition-all cursor-pointer hover:bg-secondary/5"
+                    >
+                      <Upload className="h-7 w-7 text-muted-foreground" />
+                      <div className="text-center">
+                        <p className="text-sm text-muted-foreground">Klik untuk upload screenshot</p>
+                        <p className="text-xs text-muted-foreground/60 mt-1">JPG, PNG, WebP</p>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setInviteOpen(false)}>Batal</Button>
+                <Button
+                  onClick={handleSubmitInvite}
+                  disabled={submitInvite.isPending || !screenshot}
+                  className="bg-secondary hover:bg-secondary/90 text-white gap-2"
                 >
-                  <Upload className="h-7 w-7 text-muted-foreground" />
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Klik untuk upload screenshot</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">JPG, PNG, WebP</p>
-                  </div>
-                </button>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setInviteOpen(false)}>Batal</Button>
-            <Button
-              onClick={handleSubmitInvite}
-              disabled={submitInvite.isPending || !screenshot}
-              className="bg-secondary hover:bg-secondary/90 text-white gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              {submitInvite.isPending ? "Mengirim..." : "Kirim Bukti"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                  <MessageCircle className="h-4 w-4" />
+                  {submitInvite.isPending ? "Mengirim..." : "Kirim Bukti"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

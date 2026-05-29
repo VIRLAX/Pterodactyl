@@ -160,7 +160,26 @@ export default function AdminSettings() {
                       </div>
                       <div className="md:col-span-2 space-y-2">
                         <Label>QRIS URL/Data (gambar atau string)</Label>
-                        <Input className="bg-background/50 border-white/10" value={settingsForm.qrisData || ""} onChange={e => sf("qrisData", e.target.value)} placeholder="URL gambar QRIS atau data string..." />
+                        <Input className="bg-background/50 border-white/10" value={settingsForm.qrisData || settingsForm.qrisImageUrl || ""} onChange={e => sf("qrisImageUrl", e.target.value)} placeholder="URL gambar QRIS atau data string..." />
+                      </div>
+                    </div>
+                    <div className="border-t border-white/10 pt-4">
+                      <div className="flex items-start gap-4 p-4 bg-secondary/5 border border-secondary/20 rounded-xl">
+                        <div className="flex-1 space-y-2">
+                          <Label className="text-secondary font-semibold">Diskon Token Invite (%)</Label>
+                          <p className="text-xs text-muted-foreground">Persentase diskon yang diberikan kepada user yang menggunakan token dari program invite. Contoh: 10 = diskon 10%</p>
+                          <div className="flex items-center gap-3 mt-2">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              className="bg-background/50 border-white/10 w-32"
+                              value={settingsForm.inviteDiscountPercent ?? 10}
+                              onChange={e => sf("inviteDiscountPercent", Number(e.target.value))}
+                            />
+                            <span className="text-muted-foreground text-sm">% diskon untuk pemegang token invite</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </CardContent>

@@ -15,6 +15,7 @@ export const siteSettingsTable = pgTable("site_settings", {
   bannerEnabled: boolean("banner_enabled").notNull().default(false),
   bannerText: text("banner_text"),
   bannerColor: text("banner_color").default("#7c3aed"),
+  inviteDiscountPercent: integer("invite_discount_percent").notNull().default(10),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

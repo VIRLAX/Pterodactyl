@@ -12,10 +12,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
-import { Server, Search, Check, Upload, X, Filter, Gift, MessageCircle } from "lucide-react";
+import { Server, Search, Check, Upload, X, Filter, Gift, MessageCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
-const categories = ["Semua", "1GB", "2GB", "3GB", "4GB", "5GB", "6GB", "7GB", "8GB", "9GB", "TK", "OWN", "PT", "ADP", "Unlimited", "RESS"];
+const ALL_CATEGORIES = ["Semua", "1GB", "2GB", "3GB", "4GB", "5GB", "6GB", "7GB", "8GB", "9GB", "TK", "OWN", "PT", "ADP", "Unlimited", "RESS"];
+const INITIAL_VISIBLE = 7;
 
 export default function Marketplace() {
   const [, setLocation] = useLocation();
@@ -25,7 +26,11 @@ export default function Marketplace() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [screenshotName, setScreenshotName] = useState("");
+  const [showAllCats, setShowAllCats] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const visibleCategories = showAllCats ? ALL_CATEGORIES : ALL_CATEGORIES.slice(0, INITIAL_VISIBLE);
+  const hiddenCount = ALL_CATEGORIES.length - INITIAL_VISIBLE;
 
   const params = {
     available: true,
@@ -66,7 +71,6 @@ export default function Marketplace() {
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
       <main className="flex-1 container mx-auto px-4 py-10">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Marketplace</h1>
           <p className="text-muted-foreground">Temukan panel Pterodactyl yang tepat untuk kebutuhanmu.</p>
@@ -97,7 +101,7 @@ export default function Marketplace() {
                 <Filter className="h-3.5 w-3.5" /> Kategori
               </label>
               <div className="flex flex-wrap lg:flex-col gap-1.5">
-                {categories.map(cat => (
+                {visibleCategories.map(cat => (
                   <button
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
@@ -111,6 +115,16 @@ export default function Marketplace() {
                   </button>
                 ))}
               </div>
+              <button
+                onClick={() => setShowAllCats(p => !p)}
+                className="flex items-center gap-1.5 text-xs text-primary/80 hover:text-primary transition-colors px-1 py-1"
+              >
+                {showAllCats ? (
+                  <><ChevronUp className="h-3.5 w-3.5" /> Sembunyikan</>
+                ) : (
+                  <><ChevronDown className="h-3.5 w-3.5" /> +{hiddenCount} kategori lainnya</>
+                )}
+              </button>
             </div>
 
             {/* Invite Promo Box */}
@@ -146,7 +160,7 @@ export default function Marketplace() {
           <div className="flex-1">
             {isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                {[...Array(6)].map(i => <div key={i} className="h-72 rounded-2xl bg-white/5 animate-pulse" />)}
+                {[...Array(6)].map((_, i) => <div key={i} className="h-72 rounded-2xl bg-white/5 animate-pulse" />)}
               </div>
             ) : !products?.length ? (
               <div className="flex flex-col items-center py-24 text-muted-foreground">
@@ -190,10 +204,20 @@ export default function Marketplace() {
                       </CardHeader>
                       <CardContent className="flex-1 space-y-3">
                         <div>
-                          <span className="text-2xl font-bold text-white">Rp {product.price.toLocaleString()}</span>
-                          <span className="text-muted-foreground text-sm">/bln</span>
-                          {product.originalPrice && (
-                            <span className="ml-2 text-xs text-muted-foreground line-through">Rp {product.originalPrice.toLocaleString()}</span>
+                          {product.originalPrice ? (
+                            <>
+                              <span className="text-sm text-muted-foreground line-through mr-2">Rp {product.originalPrice.toLocaleString()}</span>
+                              <span className="text-2xl font-bold text-white">Rp {product.price.toLocaleString()}</span>
+                              <span className="text-muted-foreground text-sm">/bln</span>
+                              <span className="ml-2 text-xs bg-green-500/15 text-green-400 border border-green-500/20 rounded-full px-2 py-0.5">
+                                Hemat {Math.round((1 - product.price / product.originalPrice) * 100)}%
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-2xl font-bold text-white">Rp {product.price.toLocaleString()}</span>
+                              <span className="text-muted-foreground text-sm">/bln</span>
+                            </>
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground line-clamp-2">{product.description}</p>

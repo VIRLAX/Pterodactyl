@@ -212,10 +212,6 @@ export default function AdminProducts() {
               <Input className="bg-background/50 border-white/10" value={form.name} onChange={e => f("name", e.target.value)} placeholder="misal: Panel 4GB" />
             </div>
             <div className="space-y-2">
-              <Label>Slug (URL)</Label>
-              <Input className="bg-background/50 border-white/10" value={form.slug} onChange={e => f("slug", e.target.value)} placeholder="panel-4gb" />
-            </div>
-            <div className="space-y-2">
               <Label>Harga (Rp) *</Label>
               <Input type="number" className="bg-background/50 border-white/10" value={form.price} onChange={e => f("price", e.target.value)} />
             </div>

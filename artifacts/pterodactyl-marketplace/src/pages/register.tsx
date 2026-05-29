@@ -44,6 +44,7 @@ export default function Register() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [emailValue, setEmailValue] = useState("");
   const [maskedEmail, setMaskedEmail] = useState("");
+  const [devOtp, setDevOtp] = useState<string | null>(null);
 
   const registerForm = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
@@ -70,8 +71,13 @@ export default function Register() {
       }
       setEmailValue(data.email);
       setMaskedEmail(json.maskedEmail);
+      setDevOtp(json.devOtp ?? null);
       setStep("otp");
-      toast.success("Kode OTP dikirim ke email kamu!");
+      if (json.devOtp) {
+        toast.success(`Dev Mode: Kode OTP kamu adalah ${json.devOtp}`);
+      } else {
+        toast.success("Kode OTP dikirim ke email kamu!");
+      }
     } catch {
       toast.error("Gagal terhubung ke server.");
     } finally {
@@ -336,14 +342,25 @@ export default function Register() {
                         )}
                       />
 
-                      <div className="bg-blue-500/8 border border-blue-500/15 rounded-xl p-3.5 flex items-start gap-3">
-                        <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <span className="text-blue-400 text-xs font-bold">i</span>
+                      {devOtp ? (
+                        <div className="bg-yellow-500/10 border-2 border-yellow-500/40 rounded-xl p-4 text-center">
+                          <p className="text-xs font-bold text-yellow-400 uppercase tracking-widest mb-2">⚠ Dev Mode — SMTP Belum Dikonfigurasi</p>
+                          <p className="text-xs text-muted-foreground mb-3">Email tidak terkirim. Gunakan kode ini untuk testing:</p>
+                          <div className="text-3xl font-black tracking-[0.4em] text-yellow-300 font-mono bg-yellow-500/10 rounded-lg py-3 px-4 border border-yellow-500/30">
+                            {devOtp}
+                          </div>
+                          <p className="text-xs text-yellow-500/70 mt-2">Salin kode di atas ke kolom OTP</p>
                         </div>
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          Cek inbox dan folder <strong className="text-white">spam/junk</strong>. OTP dikirim real-time ke Gmail kamu.
-                        </p>
-                      </div>
+                      ) : (
+                        <div className="bg-blue-500/8 border border-blue-500/15 rounded-xl p-3.5 flex items-start gap-3">
+                          <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-blue-400 text-xs font-bold">i</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Cek inbox dan folder <strong className="text-white">spam/junk</strong>. OTP dikirim real-time ke Gmail kamu.
+                          </p>
+                        </div>
+                      )}
 
                       <Button
                         type="submit"

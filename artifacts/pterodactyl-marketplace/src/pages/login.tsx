@@ -53,6 +53,7 @@ export default function Login() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotMasked, setForgotMasked] = useState("");
   const [resetToken, setResetToken] = useState("");
+  const [forgotDevOtp, setForgotDevOtp] = useState<string | null>(null);
 
   const loginForm = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -109,8 +110,13 @@ export default function Login() {
       }
       setForgotEmail(data.email);
       setForgotMasked(json.maskedEmail);
+      setForgotDevOtp(json.devOtp ?? null);
       setStep("forgot_otp");
-      toast.success("Kode OTP telah dikirim ke email kamu!");
+      if (json.devOtp) {
+        toast.success(`Dev Mode: Kode OTP kamu adalah ${json.devOtp}`);
+      } else {
+        toast.success("Kode OTP telah dikirim ke email kamu!");
+      }
     } catch {
       toast.error("Gagal terhubung ke server.");
     } finally {
@@ -417,6 +423,23 @@ export default function Login() {
                           </FormItem>
                         )}
                       />
+
+                      {forgotDevOtp ? (
+                        <div className="bg-yellow-500/10 border-2 border-yellow-500/40 rounded-xl p-4 text-center">
+                          <p className="text-xs font-bold text-yellow-400 uppercase tracking-widest mb-2">⚠ Dev Mode — SMTP Belum Dikonfigurasi</p>
+                          <p className="text-xs text-muted-foreground mb-3">Email tidak terkirim. Gunakan kode ini untuk testing:</p>
+                          <div className="text-3xl font-black tracking-[0.4em] text-yellow-300 font-mono bg-yellow-500/10 rounded-lg py-3 px-4 border border-yellow-500/30">
+                            {forgotDevOtp}
+                          </div>
+                          <p className="text-xs text-yellow-500/70 mt-2">Salin kode di atas ke kolom OTP</p>
+                        </div>
+                      ) : (
+                        <div className="bg-blue-500/8 border border-blue-500/15 rounded-xl p-3 flex items-start gap-2">
+                          <span className="text-blue-400 text-xs font-bold mt-0.5">i</span>
+                          <p className="text-xs text-muted-foreground">Cek inbox dan folder <strong className="text-white">spam/junk</strong> email kamu.</p>
+                        </div>
+                      )}
+
                       <Button
                         type="submit"
                         disabled={loading}

@@ -131,7 +131,7 @@ async function sendOTPEmail(to: string, otp: string, username: string, type: OTP
     console.log(`  To     : ${to}`);
     console.log(`  Code   : ${otp}`);
     console.log(`================================\n`);
-    return;
+    return { devMode: true };
   }
 
   const transporter = nodemailer.createTransport({
@@ -179,8 +179,10 @@ router.post("/auth/register", async (req, res) => {
     const expires = Date.now() + 5 * 60 * 1000;
     pendingRegistrations.set(email.toLowerCase(), { otp, expires, username, email, passwordHash });
 
+    let isDevMode = false;
     try {
-      await sendOTPEmail(email, otp, username, "register");
+      const result = await sendOTPEmail(email, otp, username, "register");
+      if (result && (result as any).devMode) isDevMode = true;
     } catch (emailErr) {
       console.error("Email send failed:", emailErr);
     }
@@ -188,7 +190,8 @@ router.post("/auth/register", async (req, res) => {
     return res.json({
       step: "otp_required",
       maskedEmail: maskEmail(email),
-      message: "Kode OTP telah dikirim ke email kamu",
+      message: isDevMode ? "SMTP belum dikonfigurasi. Gunakan kode OTP di bawah ini." : "Kode OTP telah dikirim ke email kamu",
+      ...(isDevMode ? { devOtp: otp } : {}),
     });
   } catch (err) {
     console.error(err);
@@ -278,8 +281,10 @@ router.post("/auth/forgot-password", async (req, res) => {
     const expires = Date.now() + 5 * 60 * 1000;
     passwordResetStore.set(email.toLowerCase(), { otp, expires, userId: user.id, verified: false });
 
+    let isDevMode = false;
     try {
-      await sendOTPEmail(email, otp, user.username, "reset");
+      const result = await sendOTPEmail(email, otp, user.username, "reset");
+      if (result && (result as any).devMode) isDevMode = true;
     } catch (emailErr) {
       console.error("Email send failed:", emailErr);
     }
@@ -287,7 +292,8 @@ router.post("/auth/forgot-password", async (req, res) => {
     return res.json({
       step: "otp_required",
       maskedEmail: maskEmail(email),
-      message: "Kode OTP reset password telah dikirim",
+      message: isDevMode ? "SMTP belum dikonfigurasi. Gunakan kode OTP di bawah ini." : "Kode OTP reset password telah dikirim",
+      ...(isDevMode ? { devOtp: otp } : {}),
     });
   } catch (err) {
     console.error(err);

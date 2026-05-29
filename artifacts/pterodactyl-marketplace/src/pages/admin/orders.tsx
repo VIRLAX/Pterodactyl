@@ -1,15 +1,242 @@
+import { useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
+} from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import {
+  useListOrders, getListOrdersQueryKey, useUpdateOrderStatus
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ShoppingCart, Search, Eye, CheckCircle, XCircle, Clock } from "lucide-react";
+import { toast } from "sonner";
+
+const statusColor: Record<string, string> = {
+  pending: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  paid: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  confirmed: "bg-green-500/20 text-green-400 border-green-500/30",
+  rejected: "bg-red-500/20 text-red-400 border-red-500/30",
+  cancelled: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+};
+const statusLabel: Record<string, string> = {
+  pending: "Menunggu", paid: "Sudah Bayar", confirmed: "Dikonfirmasi",
+  rejected: "Ditolak", cancelled: "Dibatalkan",
+};
 
 export default function AdminOrders() {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [newStatus, setNewStatus] = useState("");
+
+  const { data: orders, isLoading } = useListOrders({
+    query: { queryKey: getListOrdersQueryKey() }
+  });
+
+  const updateStatus = useUpdateOrderStatus();
+
+  const filtered = orders?.filter(o => {
+    const matchSearch = !search || o.invoiceNumber.toLowerCase().includes(search.toLowerCase())
+      || (o as any).user?.username?.toLowerCase().includes(search.toLowerCase())
+      || (o as any).product?.name?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === "all" || o.status === filterStatus;
+    return matchSearch && matchStatus;
+  }) ?? [];
+
+  const handleUpdateStatus = () => {
+    if (!selectedOrder || !newStatus) return;
+    updateStatus.mutate({ id: selectedOrder.id, data: { status: newStatus } }, {
+      onSuccess: () => {
+        toast.success("Status pesanan diperbarui!");
+        qc.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+        setSelectedOrder(null);
+        setNewStatus("");
+      },
+      onError: () => toast.error("Gagal memperbarui status"),
+    });
+  };
+
   return (
     <AdminLayout>
-      <h1 className="text-3xl font-bold mb-6 neon-text-primary text-primary">Manage Orders</h1>
-      <Card className="glass-panel">
-        <CardContent className="p-6">
-          <p className="text-muted-foreground">Order management features coming soon.</p>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Kelola Pesanan</h1>
+          <p className="text-muted-foreground text-sm">{orders?.length ?? 0} total pesanan</p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Cari invoice, user, produk..." className="pl-9 bg-card/50 border-white/10" value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-full sm:w-44 bg-card/50 border-white/10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-card border-white/10">
+              <SelectItem value="all">Semua Status</SelectItem>
+              <SelectItem value="pending">Menunggu</SelectItem>
+              <SelectItem value="paid">Sudah Bayar</SelectItem>
+              <SelectItem value="confirmed">Dikonfirmasi</SelectItem>
+              <SelectItem value="rejected">Ditolak</SelectItem>
+              <SelectItem value="cancelled">Dibatalkan</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Card className="glass-panel border-white/5">
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-6 space-y-3">
+                {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-white/5 rounded animate-pulse" />)}
+              </div>
+            ) : !filtered.length ? (
+              <div className="flex flex-col items-center py-16 text-muted-foreground">
+                <ShoppingCart className="h-12 w-12 mb-3 opacity-30" />
+                <p>Tidak ada pesanan ditemukan</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="text-left px-4 py-3 text-muted-foreground font-medium">Invoice</th>
+                      <th className="text-left px-4 py-3 text-muted-foreground font-medium">User</th>
+                      <th className="text-left px-4 py-3 text-muted-foreground font-medium">Produk</th>
+                      <th className="text-left px-4 py-3 text-muted-foreground font-medium">Total</th>
+                      <th className="text-left px-4 py-3 text-muted-foreground font-medium">Metode</th>
+                      <th className="text-left px-4 py-3 text-muted-foreground font-medium">Status</th>
+                      <th className="text-left px-4 py-3 text-muted-foreground font-medium">Tanggal</th>
+                      <th className="text-right px-4 py-3 text-muted-foreground font-medium">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((o) => (
+                      <tr key={o.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                        <td className="px-4 py-3">
+                          <p className="font-mono text-xs text-primary">{o.invoiceNumber}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{(o as any).user?.username ?? "-"}</p>
+                          <p className="text-xs text-muted-foreground">{(o as any).user?.email}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{(o as any).product?.name ?? "-"}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-white">Rp {o.finalPrice.toLocaleString()}</p>
+                          {o.discountAmount > 0 && (
+                            <p className="text-xs text-green-400">-Rp {o.discountAmount.toLocaleString()}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge className="bg-white/5 text-foreground border-white/10 capitalize">{o.paymentMethod}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge className={statusColor[o.status] || "bg-white/10"}>{statusLabel[o.status] ?? o.status}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString("id-ID")}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-white/10" onClick={() => { setSelectedOrder(o); setNewStatus(o.status); }}>
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Order Detail & Status Dialog */}
+      <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
+        <DialogContent className="bg-card border-white/10 max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detail Pesanan</DialogTitle>
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="space-y-4">
+              <div className="bg-background/50 rounded-lg p-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Invoice</span>
+                  <span className="font-mono text-primary">{selectedOrder.invoiceNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">User</span>
+                  <span>{(selectedOrder as any).user?.username}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Produk</span>
+                  <span>{(selectedOrder as any).product?.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Harga Asli</span>
+                  <span>Rp {selectedOrder.originalPrice.toLocaleString()}</span>
+                </div>
+                {selectedOrder.discountAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Diskon ({selectedOrder.discountCode})</span>
+                    <span className="text-green-400">-Rp {selectedOrder.discountAmount.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold pt-2 border-t border-white/10">
+                  <span>Total Bayar</span>
+                  <span className="text-primary">Rp {selectedOrder.finalPrice.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Metode</span>
+                  <span className="capitalize">{selectedOrder.paymentMethod}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Tanggal</span>
+                  <span>{new Date(selectedOrder.createdAt).toLocaleString("id-ID")}</span>
+                </div>
+              </div>
+
+              {selectedOrder.paymentProofUrl && (
+                <div>
+                  <p className="text-sm font-medium mb-2">Bukti Pembayaran:</p>
+                  <img src={selectedOrder.paymentProofUrl} alt="Bukti" className="w-full rounded-lg border border-white/10 max-h-48 object-contain" />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Update Status</label>
+                <Select value={newStatus} onValueChange={setNewStatus}>
+                  <SelectTrigger className="bg-background/50 border-white/10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-white/10">
+                    <SelectItem value="pending">Menunggu</SelectItem>
+                    <SelectItem value="paid">Sudah Bayar</SelectItem>
+                    <SelectItem value="confirmed">Konfirmasi (Selesai)</SelectItem>
+                    <SelectItem value="rejected">Tolak</SelectItem>
+                    <SelectItem value="cancelled">Batalkan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSelectedOrder(null)}>Tutup</Button>
+            <Button onClick={handleUpdateStatus} disabled={updateStatus.isPending} className="bg-primary hover:bg-primary/90 text-white">
+              {updateStatus.isPending ? "Menyimpan..." : "Simpan Status"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }

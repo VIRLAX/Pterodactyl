@@ -1,0 +1,303 @@
+FULL FITUR ALDEV PANEL MARKETPLACE
+
+AUTH & ACCOUNT
+
+- Login user
+- Register user
+- Login admin
+- Logout system
+- Session management
+- Remember me
+- Forgot password
+- Reset password
+- Email verification
+- 2FA admin security
+- Anti brute force login
+- Device login history
+- Ban/unban user
+
+---
+
+LANDING PAGE
+
+- Hero section modern
+- Animated background
+- Statistik penjualan
+- Statistik user online
+- Showcase produk
+- Testimoni customer
+- FAQ section
+- Partner/support section
+- Promo banner
+- CTA WhatsApp
+- CTA order sekarang
+- Footer modern
+- Social media link
+
+---
+
+MARKETPLACE PANEL
+
+- List semua panel
+- Detail produk
+- Harga produk
+- Badge recommended
+- Badge best seller
+- Status ready
+- Search produk
+- Filter kategori
+- Filter harga
+- Kategori panel
+- Kategori reseller
+- Kategori owner
+- Produk populer
+- Related product
+
+---
+
+DETAIL PRODUK
+
+- Deskripsi lengkap
+- Fungsi produk
+- Benefit produk
+- Cocok untuk apa
+- Fitur tiap panel
+- Uptime server
+- Status server
+- Bonus produk
+- Terms produk
+- Tombol beli cepat
+
+---
+
+SISTEM CHECKOUT
+
+- Add to cart
+- Checkout cepat
+- Input token diskon
+- Input token invite
+- Auto hitung diskon
+- Auto update total harga
+- Invoice otomatis
+- Order summary
+- Copy payment
+- Status transaksi
+- Riwayat checkout
+- Bukti pembayaran
+
+---
+
+PAYMENT SYSTEM
+
+- Dana payment
+- QRIS otomatis
+- QR popup modern
+- Upload bukti transfer
+- Auto validasi payment
+- Pending payment
+- Success payment
+- Failed payment
+- Expired payment
+- Riwayat pembayaran
+- Download invoice
+
+---
+
+TOKEN DISKON OWNER
+
+- Generate token diskon
+- Set persen diskon
+- Set batas penggunaan
+- Set masa aktif
+- Set minimal pembelian
+- Set produk tertentu
+- Token sekali pakai
+- Auto invalid setelah dipakai
+
+---
+
+TOKEN INVITE SYSTEM
+
+- Invite teman
+- Upload bukti invite
+- Sistem validasi admin
+- Validasi 2 langkah
+- Approve/reject invite
+- Auto generate token
+- Copy token otomatis
+- Token khusus produk tertentu
+
+Produk yang support token invite:
+
+- Unlimited
+- 8GB
+- 9GB
+- TK
+- OWN
+- PT
+- ADP
+- RESS
+
+---
+
+DASHBOARD USER
+
+- Profile user
+- Edit profile
+- Riwayat order
+- Riwayat payment
+- Riwayat token
+- Status transaksi
+- Claim token
+- Upload bukti
+- Notification center
+- Dark mode
+- Activity log
+
+---
+
+DASHBOARD ADMIN
+
+- Statistik penjualan
+- Statistik user
+- Statistik transaksi
+- Statistik profit
+- Grafik realtime
+- Kelola user
+- Kelola produk
+- Kelola harga
+- Kelola deskripsi
+- Kelola diskon
+- Kelola token
+- Kelola pembayaran
+- Approve transaksi
+- Approve invite
+- Broadcast pengumuman
+- Maintenance mode
+- Kelola banner
+- Kelola FAQ
+- Kelola feedback
+- Kelola laporan bug
+
+---
+
+FEEDBACK SYSTEM
+
+- Rating bintang
+- Komentar customer
+- Balasan admin
+- Testimoni otomatis tampil
+- Filter review
+- Review verified buyer
+
+---
+
+BUG REPORT SYSTEM
+
+- Form laporan bug
+- Upload screenshot
+- Upload video bug
+- Status laporan
+- Pending/fixing/solved
+- Balasan admin
+- Notifikasi bug baru
+
+---
+
+NOTIFIKASI SYSTEM
+
+- Toast notification
+- Realtime notification
+- Email notification
+- WhatsApp notification
+- Notification badge
+- Sound notification
+
+---
+
+UI/UX
+
+- Dark mode premium
+- Red neon / purple neon
+- Glassmorphism
+- Smooth animation
+- Responsive mobile
+- Responsive desktop
+- Hover animation
+- Modern loading screen
+- Skeleton loading
+- Modern modal
+- Elegant card design
+- Animated dashboard
+
+---
+
+SECURITY
+
+- Secure authentication
+- Password hashing
+- Anti spam
+- Anti SQL injection
+- Anti bypass basic
+- Rate limiter
+- Input validation
+- Secure API
+- Admin access protection
+
+---
+
+OWNER CONTROL
+
+Semua ini bisa diubah owner/admin:
+
+- Harga
+- Nama produk
+- Deskripsi
+- Badge produk
+- Banner promo
+- Token diskon
+- Rules
+- FAQ
+- Nomor Dana
+- QRIS
+- Status server
+- Warna tema
+- Tampilan dashboard
+
+---
+
+EXTRA FITUR
+
+- Live chat
+- Music toggle
+- Particle background
+- Animated cursor
+- Copy button
+- Auto save form
+- Countdown promo
+- Popup event
+- Event challenge
+- Leaderboard invite
+- Multi role admin
+- Affiliate system
+- Daily claim event
+- Lucky spin diskon
+- Referral system
+- Redeem code
+- TikTok embed
+- Discord/WhatsApp integration
+
+---
+
+TEKNOLOGI
+
+- Full stack modern
+- Realtime database
+- REST API
+- Responsive UI
+- Production ready
+- SEO optimized
+- Fast loading
+- Clean architecture
+- Modular structure
+- Premium SaaS style

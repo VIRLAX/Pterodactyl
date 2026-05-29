@@ -12,8 +12,10 @@ import {
   useReplyReview
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MessageSquare, Star, Reply } from "lucide-react";
+import { MessageSquare, Star, Reply, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
+import { getApiUrl } from "@/lib/api";
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -26,6 +28,7 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 export default function AdminReviews() {
+  const { token } = useAuth();
   const qc = useQueryClient();
   const [replyDialog, setReplyDialog] = useState<any>(null);
   const [replyText, setReplyText] = useState("");
@@ -35,6 +38,21 @@ export default function AdminReviews() {
   });
 
   const replyReview = useReplyReview();
+
+  async function deleteReview(id: number) {
+    if (!confirm("Hapus ulasan ini? Tindakan tidak bisa dibatalkan.")) return;
+    try {
+      const res = await fetch(`${getApiUrl()}/admin/reviews/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Ulasan dihapus");
+      qc.invalidateQueries({ queryKey: getListReviewsQueryKey({}) });
+    } catch {
+      toast.error("Gagal menghapus ulasan");
+    }
+  }
 
   const handleReply = () => {
     if (!replyDialog || !replyText.trim()) return;
@@ -99,15 +117,25 @@ export default function AdminReviews() {
                         )}
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-2 text-xs text-muted-foreground hover:text-white flex-shrink-0"
-                      onClick={() => { setReplyDialog(review); setReplyText((review as any).adminReply ?? ""); }}
-                    >
-                      <Reply className="h-3.5 w-3.5" />
-                      {(review as any).adminReply ? "Edit Balasan" : "Balas"}
-                    </Button>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 text-xs text-muted-foreground hover:text-white"
+                        onClick={() => { setReplyDialog(review); setReplyText((review as any).adminReply ?? ""); }}
+                      >
+                        <Reply className="h-3.5 w-3.5" />
+                        {(review as any).adminReply ? "Edit Balasan" : "Balas"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-400 hover:bg-red-500/10"
+                        onClick={() => deleteReview(review.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

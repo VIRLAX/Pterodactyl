@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, ordersTable, productsTable, usersTable, discountsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth.js";
 import crypto from "crypto";
 
@@ -121,6 +121,22 @@ router.patch("/orders/:id/status", requireAdmin, async (req, res) => {
     const [order] = await db.update(ordersTable).set(updateData).where(eq(ordersTable.id, id)).returning();
     if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" });
     return res.json(await enrichOrder(order));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/orders/clear-completed", requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const completed = ["confirmed", "rejected", "cancelled"];
+    const toDelete = await db.select({ id: ordersTable.id }).from(ordersTable)
+      .where(and(eq(ordersTable.userId, userId), inArray(ordersTable.status, completed)));
+    if (toDelete.length === 0) return res.json({ deleted: 0 });
+    const ids = toDelete.map(o => o.id);
+    await db.delete(ordersTable).where(inArray(ordersTable.id, ids));
+    return res.json({ deleted: ids.length });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Internal server error" });

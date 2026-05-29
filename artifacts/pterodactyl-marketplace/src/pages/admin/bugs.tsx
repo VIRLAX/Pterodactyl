@@ -14,8 +14,10 @@ import {
   useUpdateBugStatus
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bug, Eye, CheckCircle, Wrench } from "lucide-react";
+import { Bug, Eye, CheckCircle, Wrench, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
+import { getApiUrl } from "@/lib/api";
 
 const statusColor: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
@@ -25,6 +27,7 @@ const statusColor: Record<string, string> = {
 const statusLabel: Record<string, string> = { pending: "Menunggu", fixing: "Sedang Diperbaiki", solved: "Selesai" };
 
 export default function AdminBugs() {
+  const { token } = useAuth();
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedBug, setSelectedBug] = useState<any>(null);
@@ -35,6 +38,21 @@ export default function AdminBugs() {
   });
 
   const updateBugStatus = useUpdateBugStatus();
+
+  async function deleteBug(id: number) {
+    if (!confirm("Hapus laporan ini? Tindakan tidak bisa dibatalkan.")) return;
+    try {
+      const res = await fetch(`${getApiUrl()}/admin/bugs/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Laporan dihapus");
+      qc.invalidateQueries({ queryKey: getListBugsQueryKey() });
+    } catch {
+      toast.error("Gagal menghapus laporan");
+    }
+  }
 
   const filtered = bugs?.filter(b => filterStatus === "all" || b.status === filterStatus) ?? [];
 
@@ -99,7 +117,7 @@ export default function AdminBugs() {
                         {bug.screenshotUrl && <span className="text-blue-400">Ada screenshot</span>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
                       {bug.status === "pending" && (
                         <Button
                           variant="ghost"
@@ -128,6 +146,15 @@ export default function AdminBugs() {
                       )}
                       <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-white/10" onClick={() => { setSelectedBug(bug); setNewStatus(bug.status); }}>
                         <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-red-400 hover:bg-red-500/10"
+                        title="Hapus laporan"
+                        onClick={() => deleteBug(bug.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>

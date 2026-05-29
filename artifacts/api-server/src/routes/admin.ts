@@ -203,7 +203,33 @@ router.delete("/admin/users/:id", requireAdmin, async (req, res) => {
   try {
     const userId = Number(req.params.id);
     if (isNaN(userId)) return res.status(400).json({ error: "ID tidak valid" });
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (user?.role === "admin") return res.status(403).json({ error: "Akun admin tidak dapat dihapus" });
     await db.delete(usersTable).where(eq(usersTable.id, userId));
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/admin/reviews/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "ID tidak valid" });
+    await db.delete(reviewsTable).where(eq(reviewsTable.id, id));
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/admin/bugs/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "ID tidak valid" });
+    await db.delete(bugReportsTable).where(eq(bugReportsTable.id, id));
     return res.json({ success: true });
   } catch (err) {
     console.error(err);

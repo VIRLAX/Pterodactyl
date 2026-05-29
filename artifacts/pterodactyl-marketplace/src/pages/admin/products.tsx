@@ -247,12 +247,12 @@ export default function AdminProducts() {
             </div>
             <div className="space-y-2">
               <Label>Badge</Label>
-              <Select value={form.badge} onValueChange={v => f("badge", v)}>
+              <Select value={form.badge || "_none"} onValueChange={v => f("badge", v === "_none" ? "" : v)}>
                 <SelectTrigger className="bg-background/50 border-white/10">
                   <SelectValue placeholder="Pilih badge..." />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-white/10">
-                  {badgeOptions.map(b => <SelectItem key={b || "_none"} value={b}>{b || "Tidak ada"}</SelectItem>)}
+                  {badgeOptions.map(b => <SelectItem key={b || "_none"} value={b || "_none"}>{b || "Tidak ada"}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

@@ -3,8 +3,13 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import router from "./routes";
 import { logger } from "./lib/logger";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app: Express = express();
 
@@ -13,29 +18,15 @@ app.set("trust proxy", 1);
 /* ─────────────────────────── Security Headers (Helmet) ─────────────────────────── */
 app.use(
   helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'", "https:", "data:"],
-        objectSrc: ["'none'"],
-        frameSrc: ["'none'"],
-        upgradeInsecureRequests: [],
-      },
-    },
+    contentSecurityPolicy: false, // Disabled to allow CDN fonts/scripts in frontend
     crossOriginEmbedderPolicy: false,
     xFrameOptions: { action: "deny" },
     xXssProtection: true,
     noSniff: true,
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-    hsts: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true,
-    },
+    hsts: process.env.NODE_ENV === "production"
+      ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+      : false,
   })
 );
 
@@ -55,26 +46,39 @@ app.use(
 );
 
 /* ─────────────────────────── CORS ─────────────────────────── */
-const allowedOrigins = process.env["ALLOWED_ORIGINS"]?.split(",").map(o => o.trim()) ?? ["*"];
+// ALLOWED_ORIGINS: comma-separated list of allowed origins
+// Set to "*" to allow all (default — penting untuk universal deployment)
+// Contoh: ALLOWED_ORIGINS=https://pterostore.com,https://www.pterostore.com
+const allowedOriginsRaw = process.env["ALLOWED_ORIGINS"] ?? "*";
+const allowedOrigins = allowedOriginsRaw.split(",").map(o => o.trim());
+
 app.use(cors({
-  origin: allowedOrigins.includes("*") ? true : allowedOrigins,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, same-origin)
+    if (!origin) return callback(null, true);
+    // Allow all origins if wildcard
+    if (allowedOrigins.includes("*")) return callback(null, true);
+    // Check against allowed list
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: Origin '${origin}' not allowed`));
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
-/* ─────────────────────────── Body Parser (strict size limit) ─────────────────────────── */
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+/* ─────────────────────────── Body Parser ─────────────────────────── */
+app.use(express.json({ limit: "5mb" })); // 5mb for base64 image uploads
+app.use(express.urlencoded({ extended: true, limit: "5mb" }));
 
 /* ─────────────────────────── XSS Input Sanitization ─────────────────────────── */
 function stripTags(value: unknown): unknown {
   if (typeof value === "string") {
     return value
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
       .replace(/<[^>]*>/g, "")
       .replace(/javascript:/gi, "")
       .replace(/on\w+\s*=/gi, "")
-      .replace(/data:/gi, "")
       .trim();
   }
   if (Array.isArray(value)) return value.map(stripTags);
@@ -96,10 +100,6 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 });
 
 /* ─────────────────────────── Rate Limiting ─────────────────────────── */
-
-// Strict limit for auth endpoints (brute force / credential stuffing)
-// skipSuccessfulRequests: true so only FAILED attempts count — prevents
-// developers/admins from burning through the limit during normal use.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
@@ -109,29 +109,26 @@ const authLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
-// General limit for all API routes (DDoS mitigation)
 const generalLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
-  max: 120,
+  max: 200,
   message: { error: "Terlalu banyak request. Coba lagi sebentar." },
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.method === "OPTIONS",
 });
 
-// Strict limit for admin endpoints
 const adminLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
-  max: 60,
+  max: 120,
   message: { error: "Terlalu banyak request ke admin panel." },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Extra strict for sensitive mutations
 const mutationLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  max: 30,
+  max: 50,
   message: { error: "Terlalu banyak operasi. Tunggu sebentar." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -139,26 +136,18 @@ const mutationLimiter = rateLimit({
 
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
-app.use("/api/auth/forgot-password", authLimiter);
-app.use("/api/auth/verify-registration", authLimiter);
-app.use("/api/auth/verify-reset-otp", authLimiter);
-app.use("/api/auth/reset-password", authLimiter);
-
 app.use("/api/admin", adminLimiter);
 app.use("/api/orders", mutationLimiter);
-
 app.use("/api", generalLimiter);
 
 /* ─────────────────────────── Block Suspicious Patterns ─────────────────────────── */
 const BLOCKED_PATTERNS = [
-  /(\%27)|(\')|(\-\-)|(\%23)|(#)/i,
-  /(union|select|insert|drop|delete|update|create|alter|exec|execute|script|javascript)/i,
   /(\.\.\/)|(\.\.\\)/,
-  /(<script|<iframe|<object|<embed|onerror|onload|eval\()/i,
+  /(<script|<iframe|<object|<embed|onerror|onload)/i,
 ];
 
 app.use((req: Request, res: Response, next: NextFunction) => {
-  const target = `${req.url} ${JSON.stringify(req.query)}`;
+  const target = req.url;
   for (const pattern of BLOCKED_PATTERNS) {
     if (pattern.test(target)) {
       logger.warn({ url: req.url, ip: req.ip }, "Blocked suspicious request pattern");
@@ -168,16 +157,44 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-/* ─────────────────────────── Routes ─────────────────────────── */
+/* ─────────────────────────── API Routes ─────────────────────────── */
 app.use("/api", router);
 
-/* ─────────────────────────── 404 + Error Handler ─────────────────────────── */
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({ error: "Endpoint tidak ditemukan" });
-});
+/* ─────────────────────────── Serve Frontend Static Files (Production) ─────────────────────────── */
+// Jika ada frontend build di ../pterodactyl-marketplace/dist/public,
+// serve sebagai static files. Ini memungkinkan API + Frontend jalan di 1 server.
+const frontendDist = path.resolve(__dirname, "../../pterodactyl-marketplace/dist/public");
+const frontendDistAlt = path.resolve(__dirname, "../../../artifacts/pterodactyl-marketplace/dist/public");
 
+const staticPath = fs.existsSync(frontendDist) ? frontendDist
+  : fs.existsSync(frontendDistAlt) ? frontendDistAlt
+  : null;
+
+if (staticPath) {
+  logger.info({ staticPath }, "Serving frontend static files");
+  app.use(express.static(staticPath));
+  // SPA fallback — semua non-API routes serve index.html
+  app.get("*", (_req: Request, res: Response) => {
+    const indexPath = path.join(staticPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).json({ error: "Frontend not found. Build the frontend first." });
+    }
+  });
+} else {
+  /* ─── 404 for API-only mode ─── */
+  app.use((_req: Request, res: Response) => {
+    res.status(404).json({ error: "Endpoint tidak ditemukan" });
+  });
+}
+
+/* ─────────────────────────── Global Error Handler ─────────────────────────── */
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   logger.error({ err }, "Unhandled error");
+  if (err.message?.includes("CORS")) {
+    return res.status(403).json({ error: "CORS: Origin tidak diizinkan" });
+  }
   res.status(500).json({ error: "Internal server error" });
 });
 

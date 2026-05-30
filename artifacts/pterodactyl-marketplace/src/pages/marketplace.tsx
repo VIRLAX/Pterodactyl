@@ -16,7 +16,7 @@ import {
   Cpu, HardDrive, Shield, Zap, ChevronRight, Activity,
   Database, Globe, Lock, Star
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { toast } from "sonner";
 
 const badgeStyle: Record<string, string> = {
@@ -52,14 +52,14 @@ function getBenefitIcon(benefit: string) {
   return Check;
 }
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.07 } }
 };
 
-const cardVariants = {
+const cardVariants: Variants = {
   hidden: { opacity: 0, y: 30, scale: 0.96 },
-  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } }
+  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4 } }
 };
 
 export default function Marketplace() {

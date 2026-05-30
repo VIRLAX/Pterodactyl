@@ -2,7 +2,7 @@ import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, type Variants } from "framer-motion";
 import NotFound from "@/pages/not-found";
 
 // User Pages
@@ -37,9 +37,9 @@ const queryClient = new QueryClient({
   },
 });
 
-const pageVariants = {
+const pageVariants: Variants = {
   initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] } },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.22, ease: "easeOut" } },
   exit: { opacity: 0, y: -4, transition: { duration: 0.15 } },
 };
 

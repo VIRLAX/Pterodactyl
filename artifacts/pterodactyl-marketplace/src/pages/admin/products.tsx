@@ -15,7 +15,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import {
   useListProducts, getListProductsQueryKey,
-  useCreateProduct, useUpdateProduct, useDeleteProduct
+  useCreateProduct, useUpdateProduct, useDeleteProduct,
+  ProductInputStatus, ProductUpdateStatus,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Search, Package, AlertTriangle } from "lucide-react";
@@ -23,8 +24,9 @@ import { toast } from "sonner";
 
 const emptyForm = {
   name: "", description: "", detail: "", benefits: "",
+  usageInfo: "", suitableFor: "",
   price: 0, originalPrice: 0, badge: "",
-  status: "ready", isActive: true, sortOrder: 0,
+  status: "ready" as ProductInputStatus, isActive: true, sortOrder: 0,
   eligibleForInviteDiscount: false,
 };
 
@@ -32,7 +34,7 @@ const badgeOptions = ["", "popular", "recommended", "best seller", "new", "hot"]
 const statusOptions = [
   { value: "ready", label: "✅ Ready" },
   { value: "sold_out", label: "❌ Habis" },
-  { value: "maintenance", label: "🔧 Maintenance" },
+  { value: "coming_soon", label: "🔧 Coming Soon" },
 ];
 
 export default function AdminProducts() {
@@ -64,10 +66,12 @@ export default function AdminProducts() {
       description: p.description,
       detail: p.detail || "",
       benefits: p.benefits || "",
+      usageInfo: p.usageInfo || "",
+      suitableFor: p.suitableFor || "",
       price: p.price,
       originalPrice: p.originalPrice || 0,
       badge: p.badge || "",
-      status: p.status,
+      status: (p.status as ProductInputStatus) || "ready",
       isActive: p.isActive,
       sortOrder: p.sortOrder || 0,
       eligibleForInviteDiscount: p.eligibleForInviteDiscount || false,
@@ -84,10 +88,12 @@ export default function AdminProducts() {
       description: form.description.trim(),
       detail: form.detail.trim(),
       benefits: form.benefits.trim(),
+      usageInfo: form.usageInfo.trim() || "-",
+      suitableFor: form.suitableFor.trim() || "-",
       price: Number(form.price),
       originalPrice: Number(form.originalPrice) > 0 ? Number(form.originalPrice) : undefined,
       badge: form.badge || null,
-      status: form.status,
+      status: form.status as ProductInputStatus & ProductUpdateStatus,
       isActive: form.isActive,
       sortOrder: Number(form.sortOrder) || 0,
       eligibleForInviteDiscount: form.eligibleForInviteDiscount,

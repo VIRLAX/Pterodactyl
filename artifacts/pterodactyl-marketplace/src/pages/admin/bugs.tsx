@@ -12,7 +12,8 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   useListBugs, getListBugsQueryKey,
-  useUpdateBugStatus
+  useUpdateBugStatus,
+  BugStatusUpdateStatus,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bug, Eye, CheckCircle, Wrench, Trash2 } from "lucide-react";
@@ -32,7 +33,7 @@ export default function AdminBugs() {
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedBug, setSelectedBug] = useState<any>(null);
-  const [newStatus, setNewStatus] = useState("");
+  const [newStatus, setNewStatus] = useState<BugStatusUpdateStatus | "">("");
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -65,7 +66,7 @@ export default function AdminBugs() {
 
   const handleUpdateStatus = () => {
     if (!selectedBug || !newStatus) return;
-    updateBugStatus.mutate({ id: selectedBug.id, data: { status: newStatus } }, {
+    updateBugStatus.mutate({ id: selectedBug.id, data: { status: newStatus as BugStatusUpdateStatus } }, {
       onSuccess: () => {
         toast.success("Status laporan diperbarui!");
         qc.invalidateQueries({ queryKey: getListBugsQueryKey() });
@@ -213,7 +214,7 @@ export default function AdminBugs() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Update Status</label>
-                <Select value={newStatus} onValueChange={setNewStatus}>
+                <Select value={newStatus} onValueChange={(v) => setNewStatus(v as BugStatusUpdateStatus)}>
                   <SelectTrigger className="bg-background/50 border-white/10">
                     <SelectValue />
                   </SelectTrigger>

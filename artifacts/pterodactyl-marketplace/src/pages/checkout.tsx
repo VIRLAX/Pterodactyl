@@ -470,8 +470,8 @@ export default function Checkout() {
             </Card>
           )}
 
-          {/* REJECTED */}
-          {order.status === "rejected" && (
+          {/* FAILED/REJECTED */}
+          {order.status === "failed" && (
             <Card className="glass-panel border-red-500/30">
               <CardContent className="p-6 text-center space-y-3">
                 <AlertCircle className="h-12 w-12 text-red-400 mx-auto" />

@@ -1,11 +1,13 @@
 import { db, usersTable } from "@workspace/db";
-import { eq, ne } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { hashPassword } from "./auth.js";
 import { logger } from "./logger.js";
 
-const ADMIN_EMAIL = "admin@pterostore.com";
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "aldev123";
+// Konfigurasi admin bisa di-override lewat environment variables
+// Contoh: ADMIN_EMAIL=admin@domain.com ADMIN_PASSWORD=rahasia123
+const ADMIN_EMAIL = process.env["ADMIN_EMAIL"] ?? "admin@pterostore.com";
+const ADMIN_USERNAME = process.env["ADMIN_USERNAME"] ?? "admin";
+const ADMIN_PASSWORD = process.env["ADMIN_PASSWORD"] ?? "aldev123";
 
 export async function seedAdmin() {
   try {
@@ -17,12 +19,13 @@ export async function seedAdmin() {
 
     if (existing.length > 0) {
       const admin = existing[0];
-      if (!admin.passwordHash.startsWith("$2")) {
+      // Upgrade legacy sha256 hash ke bcrypt
+      if (!admin!.passwordHash.startsWith("$2")) {
         const newHash = hashPassword(ADMIN_PASSWORD);
-        await db.update(usersTable).set({ passwordHash: newHash }).where(eq(usersTable.id, admin.id));
+        await db.update(usersTable).set({ passwordHash: newHash }).where(eq(usersTable.id, admin!.id));
         logger.info("Admin password upgraded to bcrypt.");
       } else {
-        logger.info("Admin account already exists, skipping seed.");
+        logger.info({ email: ADMIN_EMAIL }, "Admin account already exists.");
       }
       return;
     }

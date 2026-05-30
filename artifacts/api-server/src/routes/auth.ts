@@ -3,6 +3,7 @@ import { db, usersTable, deviceSessionsTable, deviceLimitsTable } from "@workspa
 import { eq, and } from "drizzle-orm";
 import { hashPassword, verifyPassword, generateToken } from "../lib/auth.js";
 import { requireAuth } from "../middlewares/auth.js";
+import { broadcast } from "../lib/sse.js";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 
@@ -376,6 +377,7 @@ router.post("/auth/verify-registration", async (req, res) => {
       await recordDeviceSession(deviceId, user.id, userAgent);
     }
 
+    broadcast("new_user", { id: user.id, username: user.username });
     const token = generateToken(user.id, user.role);
     return res.status(201).json({
       user: { id: user.id, username: user.username, email: user.email, role: user.role, createdAt: user.createdAt },

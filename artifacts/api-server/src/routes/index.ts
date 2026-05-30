@@ -9,6 +9,7 @@ import reviewsRouter from "./reviews.js";
 import bugsRouter from "./bugs.js";
 import adminRouter from "./admin.js";
 import settingsRouter from "./settings.js";
+import backupRouter from "./backup.js";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(reviewsRouter);
 router.use(bugsRouter);
 router.use(adminRouter);
 router.use(settingsRouter);
+router.use(backupRouter);
 
 export default router;

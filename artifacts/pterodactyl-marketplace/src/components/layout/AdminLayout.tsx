@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Ticket,
   UserPlus, MessageSquare, Bug, Settings, LogOut, Menu, X,
-  ChevronRight, Bell, Monitor, Zap,
+  ChevronRight, Bell, Monitor, Zap, Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ const navItems = [
   { href: "/admin/reviews", icon: MessageSquare, label: "Ulasan" },
   { href: "/admin/bugs", icon: Bug, label: "Bug Report", badgeKey: "pendingBugs" },
   { href: "/admin/sessions", icon: Monitor, label: "Sesi Akun" },
+  { href: "/admin/backups", icon: Database, label: "Backup Data" },
   { href: "/admin/settings", icon: Settings, label: "Pengaturan" },
 ];
 

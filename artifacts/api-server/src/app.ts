@@ -3,12 +3,14 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import compression from "compression";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
 
 app.set("trust proxy", 1);
+app.use(compression());
 
 /* ─────────────────────────── Security Headers (Helmet) ─────────────────────────── */
 app.use(

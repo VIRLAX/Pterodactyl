@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, productsTable } from "@workspace/db";
 import { eq, ilike, and } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth.js";
+import { broadcast } from "../lib/sse.js";
 
 const router = Router();
 
@@ -47,6 +48,7 @@ router.post("/products", requireAdmin, async (req, res) => {
       sortOrder: Number(body.sortOrder) || 0,
       eligibleForInviteDiscount: body.eligibleForInviteDiscount || false,
     }).returning();
+    broadcast("new_product", { id: product.id, name: product.name, price: product.price });
     return res.status(201).json(product);
   } catch (err: any) {
     console.error(err);

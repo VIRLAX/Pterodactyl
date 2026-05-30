@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, ordersTable, productsTable, usersTable, discountsTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth.js";
+import { broadcast } from "../lib/sse.js";
 import crypto from "crypto";
 
 const router = Router();
@@ -83,6 +84,13 @@ router.post("/orders", requireAuth, async (req, res) => {
     }).returning();
 
     const enriched = await enrichOrder(order);
+    broadcast("new_order", {
+      id: order.id,
+      invoiceNumber: order.invoiceNumber,
+      finalPrice: order.finalPrice,
+      productName: (enriched as any).product?.name,
+      username: (enriched as any).user?.username,
+    });
     return res.status(201).json(enriched);
   } catch (err) {
     console.error(err);

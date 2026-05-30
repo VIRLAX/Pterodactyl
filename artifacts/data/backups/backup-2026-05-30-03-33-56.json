@@ -1,0 +1,93 @@
+{
+  "version": "1.0",
+  "createdAt": "2026-05-30T03:33:56.425Z",
+  "tables": {
+    "users": [
+      {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@pterostore.com",
+        "role": "admin",
+        "createdAt": "2026-05-29T13:18:28.813Z"
+      },
+      {
+        "id": 2,
+        "username": "aldxc",
+        "email": "coolex511@gmail.com",
+        "role": "user",
+        "createdAt": "2026-05-29T13:37:31.407Z"
+      }
+    ],
+    "products": [
+      {
+        "id": 1,
+        "name": "panel 1gb",
+        "slug": "panel-1gb",
+        "category": "panel",
+        "price": 3000,
+        "originalPrice": null,
+        "description": "bagus",
+        "detail": "kondusif",
+        "usageInfo": "",
+        "suitableFor": "",
+        "benefits": "ddos protect",
+        "badge": null,
+        "status": "ready",
+        "stock": null,
+        "isActive": true,
+        "sortOrder": 1,
+        "eligibleForInviteDiscount": true,
+        "createdAt": "2026-05-29T13:38:48.988Z"
+      }
+    ],
+    "orders": [
+      {
+        "id": 1,
+        "invoiceNumber": "INV-20260529-965364",
+        "userId": 2,
+        "productId": 1,
+        "originalPrice": 3000,
+        "discountAmount": 0,
+        "finalPrice": 3000,
+        "discountCode": null,
+        "paymentMethod": "dana",
+        "paymentProofUrl": null,
+        "status": "confirmed",
+        "notes": null,
+        "deliveryDomain": "testt.com",
+        "deliveryUsername": "aldev",
+        "deliveryPassword": "aldev1123",
+        "deliveryTos": "jaga yang baik",
+        "createdAt": "2026-05-29T13:39:31.241Z",
+        "updatedAt": "2026-05-29T13:58:18.051Z"
+      }
+    ],
+    "reviews": [],
+    "bugReports": [],
+    "inviteRequests": [],
+    "discounts": [],
+    "deviceSessions": [
+      {
+        "id": 2,
+        "deviceId": "a8ea3f5a-9096-4cb0-a442-8cc67b995bde",
+        "userId": 2,
+        "userAgent": "Mozilla/5.0 (Android 16; Mobile; rv:151.0) Gecko/151.0 Firefox/151.0",
+        "firstSeen": "2026-05-29T13:37:31.440Z",
+        "lastSeen": "2026-05-29T13:58:39.328Z"
+      },
+      {
+        "id": 1,
+        "deviceId": "2a6c5190-0ddc-48bf-a3f3-a5477705dbe9",
+        "userId": 1,
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36",
+        "firstSeen": "2026-05-29T13:26:46.762Z",
+        "lastSeen": "2026-05-29T14:34:13.826Z"
+      }
+    ]
+  },
+  "summary": {
+    "users": 2,
+    "products": 1,
+    "orders": 1
+  }
+}

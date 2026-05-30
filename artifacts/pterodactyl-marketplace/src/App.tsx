@@ -26,6 +26,7 @@ import AdminReviews from "@/pages/admin/reviews";
 import AdminBugs from "@/pages/admin/bugs";
 import AdminSettings from "@/pages/admin/settings";
 import AdminSessions from "@/pages/admin/sessions";
+import AdminBackups from "@/pages/admin/backups";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,7 +58,7 @@ function Router() {
       <Switch key={location}>
         <Route path="/">{() => <AnimatedPage><Landing /></AnimatedPage>}</Route>
         <Route path="/marketplace">{() => <AnimatedPage><Marketplace /></AnimatedPage>}</Route>
-        <Route path="/product/:id">{(params) => <AnimatedPage><ProductDetail /></AnimatedPage>}</Route>
+        <Route path="/product/:id">{() => <AnimatedPage><ProductDetail /></AnimatedPage>}</Route>
         <Route path="/checkout/:orderId">{() => <AnimatedPage><Checkout /></AnimatedPage>}</Route>
         <Route path="/orders">{() => <AnimatedPage><Orders /></AnimatedPage>}</Route>
         <Route path="/login">{() => <AnimatedPage><Login /></AnimatedPage>}</Route>
@@ -73,6 +74,7 @@ function Router() {
         <Route path="/admin/reviews">{() => <AnimatedPage><AdminReviews /></AnimatedPage>}</Route>
         <Route path="/admin/bugs">{() => <AnimatedPage><AdminBugs /></AnimatedPage>}</Route>
         <Route path="/admin/sessions">{() => <AnimatedPage><AdminSessions /></AnimatedPage>}</Route>
+        <Route path="/admin/backups">{() => <AnimatedPage><AdminBackups /></AnimatedPage>}</Route>
         <Route path="/admin/settings">{() => <AnimatedPage><AdminSettings /></AnimatedPage>}</Route>
 
         <Route>{() => <AnimatedPage><NotFound /></AnimatedPage>}</Route>

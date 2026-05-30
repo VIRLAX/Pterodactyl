@@ -1,0 +1,41 @@
+
+> **"Refactor the entire backend to be production-ready and deployable on any platform (Railway, Render, VPS, etc). Requirements:**
+>
+> **Storage & Database:**
+> - Use **SQLite** with `better-sqlite3` for all data storage (users, products, orders, sessions, etc.)
+> - Database file stored at `data/database.db`
+> - On first run, auto-create all tables if not exist
+> - Support high concurrent users without lag or downtime
+>
+> **Authentication & Security:**
+> - Passwords hashed with **bcrypt** (min 12 rounds)
+> - Sessions use **JWT tokens** with expiry (7 days)
+> - Rate limiting on login endpoint (max 5 attempts per IP per minute, then block 15 minutes)
+> - All API endpoints protected with auth middleware
+> - CORS configured to only allow frontend domain
+> - Input sanitization on all endpoints to prevent SQL injection and XSS
+> - HTTP security headers (helmet.js)
+>
+> **Real-time:**
+> - Add **WebSocket** support using `ws` package
+> - Broadcast real-time events for: new user registered, new order, new product added
+> - Admin dashboard receives live updates without page refresh
+>
+> **Backup System:**
+> - Add admin-only endpoint `POST /api/admin/backup` that creates a full backup of `database.db` as a downloadable `.db` file
+> - Auto backup runs automatically every **7 days** (weekly), saved to `data/backups/backup-YYYY-MM-DD.db`
+> - Keep max **4 backups** (1 month worth), delete oldest when limit exceeded
+> - Backup list endpoint `GET /api/admin/backups` returns all available backups
+> - Admin panel has a **Backup page** with: manual backup button, list of all backups with download links, backup schedule info
+>
+> **Performance:**
+> - Use connection pooling and prepared statements for all SQLite queries
+> - Gzip compression on all responses
+> - Static assets served with cache headers
+>
+> **Deployment:**
+> - Add `Dockerfile` for containerized deployment
+> - Add `.env.example` with all required environment variables
+> - `PORT`, `JWT_SECRET`, `FRONTEND_URL`, `NODE_ENV` as env vars
+> - Health check endpoint `GET /api/health` returns server status
+> - All file paths use relative paths, no hardcoded absolute paths"**

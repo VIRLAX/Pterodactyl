@@ -11,9 +11,11 @@ import {
 } from "recharts";
 import {
   Users, ShoppingCart, TrendingUp, Package,
-  Clock, CheckCircle, UserPlus, Bug, Star, Zap
+  Clock, CheckCircle, UserPlus, Bug, Star, Zap, Radio
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAdminSSE } from "@/hooks/use-sse";
+import { useAuth } from "@/hooks/use-auth";
 
 function StatCard({ title, value, sub, icon: Icon, color, delay = 0 }: {
   title: string; value: string | number; sub?: string;
@@ -62,6 +64,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function AdminDashboard() {
+  const { token } = useAuth();
+  useAdminSSE(token ?? undefined);
+
   const { data: stats, isLoading: statsLoading } = useGetAdminStats({
     query: { queryKey: getGetAdminStatsQueryKey() }
   });
@@ -90,6 +95,10 @@ export default function AdminDashboard() {
             <p className="text-muted-foreground text-sm mt-1">Selamat datang kembali di PteroStore Admin</p>
           </div>
           <div className="flex items-center gap-2">
+            <Badge className="bg-primary/15 text-primary border-primary/25 gap-1.5">
+              <Radio className="w-3 h-3 animate-pulse" />
+              Live
+            </Badge>
             <Badge className="bg-green-500/15 text-green-400 border-green-500/25 gap-1.5">
               <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse inline-block" />
               Online

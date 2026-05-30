@@ -141,31 +141,40 @@ export default function Login() {
     setEmailStatus("idle");
     setPasswordStatus("idle");
     setShowDeviceAccounts(false);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     try {
       const deviceId = getOrCreateDeviceId();
       const res = await fetch(`${getApiUrl()}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, deviceId }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const json = await res.json();
       if (!res.ok) {
         const errMsg = json.error || "Login gagal. Periksa email dan password.";
         setLoginError(errMsg);
 
-        const emailCheck = await fetch(`${getApiUrl()}/auth/check-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: data.email }),
-        });
-        const emailJson = await emailCheck.json();
-
-        if (!emailJson.exists) {
-          setEmailStatus("invalid");
-          setPasswordStatus("idle");
-        } else {
-          setEmailStatus("valid");
-          setPasswordStatus("invalid");
+        try {
+          const emailCheck = await fetch(`${getApiUrl()}/auth/check-email`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: data.email }),
+          });
+          const emailJson = await emailCheck.json();
+          if (!emailJson.exists) {
+            setEmailStatus("invalid");
+            setPasswordStatus("idle");
+          } else {
+            setEmailStatus("valid");
+            setPasswordStatus("invalid");
+          }
+        } catch {
+          // check-email failure is non-critical, ignore
         }
         return;
       }
@@ -174,8 +183,13 @@ export default function Login() {
       login(json.token, json.user);
       toast.success(`Selamat datang, ${json.user.username}!`);
       setLocation(json.user.role === "admin" ? "/admin" : "/marketplace");
-    } catch {
-      toast.error("Gagal terhubung ke server.");
+    } catch (err: unknown) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error && err.name === "AbortError") {
+        toast.error("Koneksi timeout. Server tidak merespons dalam 15 detik.");
+      } else {
+        toast.error("Gagal terhubung ke server. Coba lagi.");
+      }
     } finally {
       setLoading(false);
     }

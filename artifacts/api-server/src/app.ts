@@ -3,14 +3,12 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
-import compression from "compression";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
 
 app.set("trust proxy", 1);
-app.use(compression());
 
 /* ─────────────────────────── Security Headers (Helmet) ─────────────────────────── */
 app.use(
@@ -100,13 +98,15 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 /* ─────────────────────────── Rate Limiting ─────────────────────────── */
 
 // Strict limit for auth endpoints (brute force / credential stuffing)
+// skipSuccessfulRequests: true so only FAILED attempts count — prevents
+// developers/admins from burning through the limit during normal use.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 15,
+  max: 30,
   message: { error: "Terlalu banyak percobaan. Coba lagi dalam 15 menit." },
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: false,
+  skipSuccessfulRequests: true,
 });
 
 // General limit for all API routes (DDoS mitigation)
